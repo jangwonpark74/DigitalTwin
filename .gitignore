@@ -9,3 +9,7 @@ __pycache__/
 
 # Optional local Sionna-RT runtime.
 .venv-sionna-rt/
+
+# Local presentation captures and build intermediates; keep the final PPTX.
+/presentation_work/captures/
+/presentation_work/build/
