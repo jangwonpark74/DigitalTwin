@@ -1,2 +1,11 @@
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
+/node_modules/
+/state/
+
+# Python test and local server bytecode.
+__pycache__/
+*.py[cod]
+
+# Optional local Sionna-RT runtime.
+.venv-sionna-rt/

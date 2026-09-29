@@ -1,0 +1,23 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "demo-office",
+      "properties": { "height": 32 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[126.9774, 37.5662], [126.9777, 37.5662], [126.9777, 37.5665], [126.9774, 37.5665], [126.9774, 37.5662]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "demo-residential",
+      "properties": { "building:levels": 6 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[126.9781, 37.5666], [126.9784, 37.5666], [126.9784, 37.5669], [126.9781, 37.5669], [126.9781, 37.5666]]]
+      }
+    }
+  ]
+}

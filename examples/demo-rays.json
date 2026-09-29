@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "kind": "ray-paths",
+  "coordinateSystem": "EPSG:4326",
+  "runId": "synthetic-example",
+  "solver": "example-file-no-solver-run",
+  "paths": [
+    {
+      "id": "demo-line-of-sight",
+      "pathLossDb": 88.4,
+      "points": [
+        { "latitude": 37.5663, "longitude": 126.9775, "heightM": 28 },
+        { "latitude": 37.5667, "longitude": 126.9782, "heightM": 1.5 }
+      ]
+    },
+    {
+      "id": "demo-reflection",
+      "pathLossDb": 105.2,
+      "points": [
+        { "latitude": 37.5663, "longitude": 126.9775, "heightM": 28 },
+        { "latitude": 37.5665, "longitude": 126.9777, "heightM": 15 },
+        { "latitude": 37.5667, "longitude": 126.9782, "heightM": 1.5 }
+      ]
+    }
+  ]
+}

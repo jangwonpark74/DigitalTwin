@@ -1,6 +1,7 @@
 import { defaultUseCases, validateUseCases, drivePlan, abPlan, datasetPlan } from './usecases.mjs';
 import { defaultTasks, validateTasks, schedulePlan } from './tasks.mjs';
 import { defaultManagement, validateManagement, sanitizeManagement, managementSnapshot, upgradeManagement } from './management.mjs';
+import { validateScene, validateRayPaths, parseRayPaths } from './scene.mjs';
 
 const clone = value => structuredClone(value);
 const round = value => Math.round(value * 10) / 10;
@@ -11,11 +12,71 @@ function cells(siteId) {
     txPowerDbm: 43, downtiltDeg: 6, bandwidthMhz: 100, antenna: '8×8 virtual array' }));
 }
 
+function defaultRadio() {
+  return { manufacturer: 'Samsung', technology: '5G NR', ruModel: '', band: '', mmuModel: '',
+    mmuElements: null, beamformingProfile: '' };
+}
+
+function defaultRadioLocation() {
+  return { latitude: null, longitude: null, source: 'unassigned' };
+}
+
+const metersPerLatitudeDegree = 111_320;
+
+function longitudeScale(latitude) {
+  const scale = Math.cos(latitude * Math.PI / 180);
+  if (Math.abs(scale) < 1e-4) throw new Error('Local longitude placement is not supported near the poles');
+  return scale;
+}
+
+function normalizeLongitude(longitude) {
+  return ((longitude + 180) % 360 + 360) % 360 - 180;
+}
+
+export function mapPercentToGeo(map, x, y) {
+  if (!map || !Number.isFinite(map.latitude) || map.latitude < -90 || map.latitude > 90 ||
+      !Number.isFinite(map.longitude) || map.longitude < -180 || map.longitude > 180 ||
+      !Number.isFinite(map.radiusMeters) || map.radiusMeters < 100 || map.radiusMeters > 20_000) {
+    throw new Error('A valid map center and radius are required for radio placement');
+  }
+  if (![x, y].every(value => Number.isFinite(value) && value >= 0 && value <= 100)) {
+    throw new Error('Radio map position must be between 0 and 100');
+  }
+  const eastMeters = (x - 50) / 50 * map.radiusMeters;
+  const northMeters = (50 - y) / 50 * map.radiusMeters;
+  const latitude = map.latitude + northMeters / metersPerLatitudeDegree;
+  const longitude = eastMeters === 0 ? map.longitude
+    : normalizeLongitude(map.longitude + eastMeters / (metersPerLatitudeDegree * longitudeScale(map.latitude)));
+  if (latitude < -90 || latitude > 90) {
+    throw new Error('Radio placement would exceed geographic coordinate bounds');
+  }
+  return { latitude, longitude };
+}
+
+export function geoToMapPercent(map, latitude, longitude) {
+  if (!map || !Number.isFinite(map.latitude) || map.latitude < -90 || map.latitude > 90 ||
+      !Number.isFinite(map.longitude) || map.longitude < -180 || map.longitude > 180 ||
+      !Number.isFinite(map.radiusMeters) || map.radiusMeters < 100 || map.radiusMeters > 20_000 ||
+      !Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
+      !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    throw new Error('Valid map and radio coordinates are required');
+  }
+  const northMeters = (latitude - map.latitude) * metersPerLatitudeDegree;
+  const eastMeters = normalizeLongitude(longitude - map.longitude) * metersPerLatitudeDegree * longitudeScale(map.latitude);
+  const x = 50 + eastMeters / map.radiusMeters * 50;
+  const y = 50 - northMeters / map.radiusMeters * 50;
+  const tolerance = 1e-8;
+  if (x < -tolerance || x > 100 + tolerance || y < -tolerance || y > 100 + tolerance) {
+    throw new Error('Radio coordinates are outside the current map radius');
+  }
+  return { x: clamp(x, 0, 100), y: clamp(y, 0, 100) };
+}
+
 export function defaultProject() {
   return {
     schemaVersion: 1, name: 'RAN Twin · City Pilot', scenario: 'baseline',
     map: { city: 'Example City', cluster: 'Central cluster', latitude: 37.5665, longitude: 126.978,
-      radiusMeters: 1200, source: 'OpenStreetMap', sceneFile: '', geometryValidated: false,
+      radiusMeters: 1200, source: 'OpenStreetMap', sceneFile: '', scene: null, geometryValidated: false,
       materialAssigned: false, coordinateAligned: false },
     runtime: { host: 'GH200', gpu: 'H200', cpu: 'Grace CPU', status: 'not-connected' },
     integration: { connected: false, vCoreEndpoint: '', vDUEndpoint: '', protocol: 'not-configured' },
@@ -28,14 +89,18 @@ export function defaultProject() {
     },
     channel: { engine: 'Sionna-RT', execution: 'planned-not-executed', maxDepth: 4,
       reflections: true, diffraction: false, blockage: 12 },
+    rayResults: null,
     ue: { count: 1200, mobility: 'Urban pedestrian', seed: 42 },
     useCases: defaultUseCases(),
     tasks: defaultTasks(),
     management: defaultManagement(),
     sites: [
-      { id: 'SITE-01', name: 'Civic Square', x: 31, y: 35, heightM: 28, frontEnd: 'Antenna', cells: cells('SITE-01') },
-      { id: 'SITE-02', name: 'River Bridge', x: 68, y: 31, heightM: 36, frontEnd: 'MMU', cells: cells('SITE-02') },
-      { id: 'SITE-03', name: 'Market Street', x: 54, y: 71, heightM: 24, frontEnd: 'Antenna', cells: cells('SITE-03') },
+      { id: 'SITE-01', name: 'Civic Square', x: 31, y: 35, heightM: 28, frontEnd: 'Antenna',
+        radio: defaultRadio(), radioLocation: defaultRadioLocation(), cells: cells('SITE-01') },
+      { id: 'SITE-02', name: 'River Bridge', x: 68, y: 31, heightM: 36, frontEnd: 'MMU',
+        radio: defaultRadio(), radioLocation: defaultRadioLocation(), cells: cells('SITE-02') },
+      { id: 'SITE-03', name: 'Market Street', x: 54, y: 71, heightM: 24, frontEnd: 'Antenna',
+        radio: defaultRadio(), radioLocation: defaultRadioLocation(), cells: cells('SITE-03') },
     ],
   };
 }
@@ -47,7 +112,9 @@ export function validateProject(p) {
   if (!p?.map || !Number.isFinite(p.map.longitude) || p.map.longitude < -180 || p.map.longitude > 180) errors.push('Invalid map longitude');
   if (!p?.map || !Number.isFinite(p.map.radiusMeters) || p.map.radiusMeters < 100 || p.map.radiusMeters > 20000) errors.push('Invalid map radius');
   if (!p?.map || typeof p.map.city !== 'string' || !p.map.city.trim() || typeof p.map.cluster !== 'string' || !p.map.cluster.trim()) errors.push('City and cluster are required');
-  if (p?.map?.source !== 'OpenStreetMap') errors.push('Unsupported map source');
+  if (!['OpenStreetMap', 'GeoJSON'].includes(p?.map?.source)) errors.push('Unsupported map source');
+  errors.push(...validateScene(p?.map?.scene));
+  errors.push(...validateRayPaths(p?.rayResults));
   if (p?.runtime?.host !== 'GH200' || p.runtime.gpu !== 'H200' || p.runtime.cpu !== 'Grace CPU') errors.push('Runtime must specify GH200 / H200 / Grace CPU');
   if (p?.architecture?.vCore?.kind !== 'physical' || p?.architecture?.vDU?.kind !== 'physical' || p?.architecture?.ru?.kind !== 'virtual' || p?.architecture?.ue?.kind !== 'virtual-cpu') errors.push('Physical / virtual RAN boundary invalid');
   if (p?.channel?.engine !== 'Sionna-RT' || !Number.isInteger(p.channel.maxDepth) || p.channel.maxDepth < 1 || p.channel.maxDepth > 12) errors.push('Invalid Sionna-RT configuration');
@@ -56,13 +123,28 @@ export function validateProject(p) {
   if (!Array.isArray(p?.sites) || p.sites.length === 0 || p.sites.length > 50) errors.push('Site inventory must contain 1–50 sites');
   const siteIds = new Set(), cellIds = new Set();
   for (const site of Array.isArray(p?.sites) ? p.sites : []) {
+    if (!site || typeof site !== 'object' || Array.isArray(site)) { errors.push('Invalid site record'); continue; }
     if (typeof site.id !== 'string' || !/^SITE-\d{2,4}$/.test(site.id) || siteIds.has(site.id)) errors.push(`Duplicate or invalid site ${site.id}`);
     siteIds.add(site.id);
     if (typeof site.name !== 'string' || !site.name.trim() || ![site.x, site.y].every(v => Number.isFinite(v) && v >= 0 && v <= 100)) errors.push(`Invalid location for ${site.id}`);
     if (!Number.isFinite(site.heightM) || site.heightM < 1 || site.heightM > 300) errors.push(`Invalid height for ${site.id}`);
     if (!['Antenna', 'MMU'].includes(site.frontEnd)) errors.push(`Invalid front end for ${site.id}`);
+    if (!site.radio || typeof site.radio !== 'object' || typeof site.radio.manufacturer !== 'string' || !site.radio.manufacturer.trim() || site.radio.manufacturer.length > 60) errors.push(`Invalid radio manufacturer for ${site.id}`);
+    if (!['4G LTE', '5G NR', '4G LTE + 5G NR'].includes(site.radio?.technology)) errors.push(`Invalid radio technology for ${site.id}`);
+    for (const key of ['ruModel', 'band', 'mmuModel', 'beamformingProfile']) {
+      if (typeof site.radio?.[key] !== 'string' || site.radio[key].length > 80) errors.push(`Invalid ${key} for ${site.id}`);
+    }
+    if (site.radio?.mmuElements !== null && (!Number.isInteger(site.radio?.mmuElements) || site.radio.mmuElements < 1 || site.radio.mmuElements > 1024)) errors.push(`Invalid MMU element count for ${site.id}`);
+    if (!site.radioLocation || typeof site.radioLocation !== 'object') errors.push(`Invalid radio location for ${site.id}`);
+    else {
+      const { latitude, longitude, source } = site.radioLocation;
+      if (latitude !== null && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) errors.push(`Invalid radio latitude for ${site.id}`);
+      if (longitude !== null && (!Number.isFinite(longitude) || longitude < -180 || longitude > 180)) errors.push(`Invalid radio longitude for ${site.id}`);
+      if (!['unassigned', 'manual', 'map-estimate'].includes(source)) errors.push(`Invalid radio location source for ${site.id}`);
+    }
     if (!Array.isArray(site.cells) || site.cells.length !== 3) errors.push(`Site ${site.id} requires three sectors`);
     for (const cell of Array.isArray(site.cells) ? site.cells : []) {
+      if (!cell || typeof cell !== 'object' || Array.isArray(cell)) { errors.push(`Invalid cell record for ${site.id}`); continue; }
       if (typeof cell.id !== 'string' || !/^SITE-\d{2,4}-C[1-3]$/.test(cell.id) || !cell.id.startsWith(`${site.id}-C`) || cellIds.has(cell.id)) errors.push(`Duplicate cell ${cell.id}`);
       cellIds.add(cell.id);
       if (!Number.isFinite(cell.txPowerDbm) || cell.txPowerDbm < 0 || cell.txPowerDbm > 60) errors.push(`Invalid Tx power for ${cell.id}`);
@@ -80,8 +162,22 @@ export function validateProject(p) {
 export function upgradeProject(p) {
   if (!p || typeof p !== 'object') return p;
   const next = clone(p);
+  if (next.map && next.map.scene === undefined) next.map.scene = null;
+  next.rayResults = next.rayResults ? parseRayPaths(next.rayResults, {
+    fileName: next.rayResults.fileName, importedAt: next.rayResults.importedAt,
+  }) : null;
   if (!next.useCases) next.useCases = defaultUseCases();
   if (!next.tasks) next.tasks = defaultTasks();
+  if (Array.isArray(next.sites)) {
+    for (const site of next.sites) {
+      if (!site || typeof site !== 'object') continue;
+      site.radio = { ...defaultRadio(), ...(site.radio && typeof site.radio === 'object' ? site.radio : {}) };
+      const location = site.radioLocation && typeof site.radioLocation === 'object' ? site.radioLocation : {};
+      const hasCoordinates = Number.isFinite(location.latitude) || Number.isFinite(location.longitude);
+      site.radioLocation = { ...defaultRadioLocation(), ...location,
+        source: location.source || (hasCoordinates ? 'manual' : 'unassigned') };
+    }
+  }
   next.management = upgradeManagement(next.management);
   return next;
 }
@@ -115,12 +211,13 @@ export function addSite(p, location) {
   const next = clone(p);
   const id = `SITE-${String(Math.max(0, ...next.sites.map(s => Number(s.id.replace('SITE-', '')) || 0)) + 1).padStart(2, '0')}`;
   next.sites.push({ id, name: location.name.trim(), x: location.x, y: location.y, heightM: 30,
-    frontEnd: 'Antenna', cells: cells(id) });
+    frontEnd: 'Antenna', radio: defaultRadio(), radioLocation: defaultRadioLocation(), cells: cells(id) });
   return next;
 }
 
 export function sanitizeProject(p) {
   const next = clone(p);
+  if (next.rayResults) next.rayResults.provenance = 'imported-unverified';
   next.map.geometryValidated = false;
   next.map.coordinateAligned = false;
   next.map.materialAssigned = false;
@@ -148,12 +245,16 @@ export function createManifest(p) {
   const errors = validateProject(p);
   if (errors.length) throw new Error(errors.join('; '));
   const safe = sanitizeProject(p);
+  const rtNote = p.rayResults?.provenance === 'sionna-rt-local'
+    ? 'A local Sionna-RT path job completed in this browser session; exported path provenance is unverified.'
+    : 'This manifest does not attest to a local Sionna-RT job.';
   return JSON.stringify({ schemaVersion: 1, exportedAt: new Date().toISOString(), project: safe.name,
     map: safe.map, runtime: safe.runtime, integration: safe.integration, architecture: safe.architecture,
-    channel: safe.channel, ue: safe.ue, sites: safe.sites, preview: simulatePreview(safe), readiness: readiness(safe),
+    channel: safe.channel, ue: safe.ue, sites: safe.sites, rayResults: safe.rayResults,
+    preview: simulatePreview(safe), readiness: readiness(safe),
     useCaseConfig: safe.useCases,
     useCases: { drive: drivePlan(safe), ab: abPlan(safe), data: datasetPlan(safe) },
     tasks: safe.tasks, schedule: schedulePlan(safe.tasks),
     management: safe.management, monitoring: managementSnapshot(safe.management),
-    note: 'Planning manifest only. No real network connection, OSM scene import, Sionna-RT execution, scheduled task dispatch, hardware discovery, software installation, telemetry collection, A/B run, drive measurement, or dataset generation was performed.' }, null, 2);
+    note: `Planning manifest with any locally imported GeoJSON footprints and unverified ray paths. ${rtNote} No real network connection, scheduled task dispatch, hardware discovery, software installation, telemetry collection, A/B run, drive measurement, or dataset generation was performed.` }, null, 2);
 }

@@ -19,6 +19,17 @@ test('network workbench exposes four GH200 pools, vDU, switch and inspectable un
   assert.doesNotMatch(html,/status="connected"|status="verified"/);
 });
 
+test('hardware views keep planning status concise and expose a labelled, keyboard-ready tab set',()=>{
+  const html=hardwareView(defaultProject(),h,{mode:'network'});
+  assert.match(html,/Planning only/);
+  assert.match(html,/no live hardware connected/i);
+  assert.match(html,/GH200 POOLS/);
+  assert.doesNotMatch(html,/GH200 COMPUTE · VIRTUAL RU TARGET/);
+  assert.match(html,/id="hwx-tab-network" role="tab"[^>]*aria-selected="true"[^>]*tabindex="0"/);
+  assert.equal((html.match(/role="tab"[^>]*tabindex="-1"/g)||[]).length,2);
+  assert.match(html,/role="tabpanel"[^>]*aria-labelledby="hwx-tab-network"/);
+});
+
 test('link inspector shows unresolved physical port, VLAN and timing evidence',()=>{
   const html=hardwareView(defaultProject(),h,{selectedLink:'ETH-FABRIC-P2'});
   assert.match(html,/ETH-FABRIC-P2/);
