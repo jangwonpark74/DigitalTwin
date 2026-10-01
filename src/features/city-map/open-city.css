@@ -1,0 +1,69 @@
+.open-city { --city-ink:#253d33; --city-muted:#68796f; color:var(--city-ink); min-width:0; }
+.open-city-heading { display:flex; justify-content:space-between; align-items:center; gap:20px; margin:4px 0 22px; }
+.open-city .open-city-eyebrow { margin:0 0 9px; font-size:10px; font-weight:700; letter-spacing:.13em; color:#537461; }
+.open-city-heading h1 { margin:0 0 8px; font-size:clamp(24px,2.6vw,36px); font-weight:650; letter-spacing:-.055em; }
+.open-city-heading h1 span { color:#77877d; font-weight:400; }
+.open-city-heading p:last-child { margin:0; font-size:13px; color:var(--city-muted); }
+.open-city-workspace { display:grid; grid-template-columns:minmax(0,1fr) 280px; border:1px solid #d6ded7; border-radius:14px; overflow:hidden; box-shadow:0 8px 26px #29382d08; background:#fff; }
+.open-city-canvas-wrap { position:relative; min-width:0; min-height:640px; background:#e8ece8; }
+.open-city .open-city-map { position:absolute; inset:0; width:100%; height:100%; }
+.open-city-map canvas { display:block; }
+.open-city-floating-title { position:absolute; left:20px; top:20px; display:flex; align-items:center; gap:12px; padding:12px 16px; max-width:calc(100% - 84px); border:1px solid #ffffff; border-radius:10px; background:#ffffffed; box-shadow:0 4px 14px #34493812; pointer-events:none; }
+.open-city-floating-title strong,.open-city-floating-title small { display:block; }
+.open-city-floating-title strong { font-size:13px; font-weight:650; }
+.open-city-floating-title small { margin-top:3px; font-size:10px; color:var(--city-muted); }
+.open-city-pin { font-size:24px; color:#52816b; }
+.open-city-tag { padding:4px 6px; border:1px solid #dbe7dd; border-radius:4px; color:#577561; font-size:8px; font-weight:750; letter-spacing:.08em; }
+.open-city-view { position:absolute; display:flex; gap:3px; bottom:64px; left:20px; padding:4px; border:1px solid #d7dfd6; border-radius:9px; background:#fffffff5; box-shadow:0 3px 12px #34493815; }
+.open-city-view button { min-height:36px; padding:7px 12px; border:0; border-radius:6px; font-family:inherit; font-weight:600; font-size:11px; color:#607265; background:transparent; cursor:pointer; }
+.open-city-view button[aria-pressed=true] { background:#263e32; color:#fff; }
+.open-city-view button:disabled { opacity:.5; cursor:wait; }
+.open-city-map-hint { position:absolute; bottom:35px; left:20px; max-width:calc(100% - 40px); padding:4px 7px; border-radius:4px; background:#ffffffdd; color:#526659; font-size:10px; pointer-events:none; }
+.open-city-loading { position:absolute; display:flex; align-items:center; gap:9px; left:50%; top:50%; transform:translate(-50%,-50%); padding:12px 18px; border-radius:8px; box-shadow:0 4px 24px #1b3a2920; background:white; font-size:12px; }
+.open-city-loading > span { width:7px; height:7px; border-radius:50%; background:#789a7e; }
+.open-city-error { position:absolute; top:45%; left:50%; transform:translate(-50%,-50%); width:min(320px,calc(100% - 24px)); padding:20px; background:#fff; border:1px solid #d2bfa1; border-radius:12px; box-shadow:0 10px 24px #2c443029; font-size:13px; }
+.open-city-error p { color:var(--city-muted); line-height:1.6; }
+.open-city-error button { border:0; padding:10px 14px; border-radius:6px; background:#263e32; color:#fff; cursor:pointer; }
+.open-city-inspector { display:flex; flex-direction:column; gap:22px; min-width:0; padding:24px 20px; border-left:1px solid #dce3db; }
+.open-city-inspector-head { display:flex; justify-content:space-between; gap:8px; font-size:9px; font-weight:750; letter-spacing:.08em; }
+.open-city-inspector-head small { color:#819085; font-size:8px; }
+.open-city-location { display:grid; gap:9px; font-size:11px; font-weight:650; }
+.open-city-location select { width:100%; padding:11px 10px; border:1px solid #d9e1da; border-radius:7px; background:#f9fbf8; color:var(--city-ink); font:inherit; cursor:pointer; }
+.open-city-health { display:flex; align-items:center; gap:7px; color:#496854; }
+.open-city-health p { margin:0; font-size:10px; line-height:1.5; }
+.open-city-status-dot { flex:none; width:6px; height:6px; border-radius:50%; background:#59876a; }
+.open-city-health[data-phase=error] { color:#916a32; }
+.open-city-health[data-phase=error] .open-city-status-dot { background:#b08744; }
+.open-city-health[data-phase=loading] .open-city-status-dot { background:#899b8a; }
+.open-city-stat { display:grid; gap:3px; margin-top:-10px; }
+.open-city-stat strong { font-size:32px; letter-spacing:-.04em; font-weight:500; font-variant-numeric:tabular-nums; }
+.open-city-stat span { color:var(--city-muted); font-size:11px; }
+.open-city-layers { margin:0; padding:18px 0 0; border:0; border-top:1px solid #e8ece6; }
+.open-city-layers legend { float:left; width:100%; margin:0 0 14px; font-size:11px; font-weight:650; }
+.open-city-layers label { display:flex; justify-content:space-between; align-items:center; gap:10px; min-height:35px; clear:both; font-size:11px; color:#53665a; }
+.open-city-layers input { width:16px; height:16px; accent-color:#3f6c52; }
+.open-city-selection { border-top:1px solid #e8ece6; padding-top:20px; }
+.open-city-selection h2 { font-size:14px; letter-spacing:-.02em; margin:12px 0 8px; font-weight:600; }
+.open-city-selection p:not(.open-city-eyebrow),.open-city-source p,.open-city-boundary p { margin:0; color:var(--city-muted); font-size:11px; line-height:1.7; }
+.open-city-selection-icon { display:grid; place-items:center; margin:20px 0 12px; width:40px; height:40px; border:1px solid #dce5dc; border-radius:9px; color:#759881; background:#f7faf5; font-size:24px; }
+.open-city-selection dl { margin:14px 0; font-size:11px; }
+.open-city-selection dl > div { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid #edf1eb; }
+.open-city-selection dt { color:var(--city-muted); }
+.open-city-selection dd { margin:0; text-align:right; overflow-wrap:anywhere; }
+.open-city-selection small { color:var(--city-muted); font-size:10px; line-height:1.6; display:block; }
+.open-city-inspect-button { margin-top:12px; padding:8px 11px; width:100%; min-height:36px; border:1px solid #d5e0d1; border-radius:6px; color:#54704c; background:#f6faf2; font-size:11px; cursor:pointer; }
+.open-city-inspect-button:disabled { opacity:.5; cursor:not-allowed; }
+.open-city-source { font-size:11px; }
+.open-city-source summary { cursor:pointer; font-weight:600; }
+.open-city-source p { margin:10px 0; }
+.open-city-source a { color:#376b4f; }
+.open-city-boundary { margin-top:auto; padding:12px; border:1px solid #e4e9e1; border-radius:7px; background:#f8faf5; }
+.open-city-boundary strong { display:block; margin-bottom:5px; font-size:10px; }
+.open-city-footer { display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px; margin:14px 2px 0; color:#758279; font-size:9px; line-height:1.6; letter-spacing:.015em; }
+.open-city :is(button,input,select,summary,a):focus-visible { outline:3px solid #599071; outline-offset:3px; }
+.open-city .maplibregl-ctrl-attrib { max-width:100%; font-size:9px; color:#516556; background:#ffffffe6; }
+.open-city .maplibregl-ctrl-attrib a { color:#516556; }
+@media(min-width:1500px) { .open-city-canvas-wrap { min-height:720px; } }
+@media(max-width:1100px) { .open-city-workspace { grid-template-columns:minmax(0,1fr) 240px; }.open-city-inspector { padding:20px 16px; gap:18px; }.open-city-tag { display:none; } }
+@media(max-width:850px) { .open-city-workspace { grid-template-columns:minmax(0,1fr); }.open-city-canvas-wrap { min-height:480px; }.open-city-inspector { border-left:0; border-top:1px solid #dce3db; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }.open-city-inspector-head,.open-city-boundary,.open-city-source { grid-column:1/-1; }.open-city-layers { border-top:0; padding:0; }.open-city-selection { grid-column:1/-1; } }
+@media(max-width:560px) { .open-city-heading { flex-direction:column; align-items:flex-start; gap:14px; }.open-city-canvas-wrap { min-height:420px; }.open-city-floating-title { left:12px; top:12px; padding:10px; }.open-city-floating-title small { max-width:170px; font-size:9px; }.open-city-view { left:12px; bottom:86px; }.open-city-map-hint { left:12px; bottom:54px; font-size:9px; max-width:calc(100% - 24px); }.open-city .maplibregl-ctrl-attrib { font-size:8px; }.open-city-inspector { padding:18px; }.open-city-location { grid-column:1/-1; }.open-city-selection-icon { margin-top:10px; } }

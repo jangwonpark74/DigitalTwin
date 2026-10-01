@@ -1,0 +1,200 @@
+{
+  "retrievedAt": "2026-10-01T15:59:20.391Z",
+  "coordinateSystem": "EPSG:4326",
+  "drive": {
+    "fileName": "gangnam-nonhyeon-teheran-synthetic-drive.csv",
+    "dataKind": "synthetic-example",
+    "samples": 676,
+    "durationSeconds": 1152.08,
+    "polylineDistanceMeters": 8640.6,
+    "osrmRouteDistanceMeters": 8641.7,
+    "nominalSpeedKmh": 27,
+    "maximumSampleSpacingMeters": 15,
+    "sha256": "6aa8c251ae62345e7669f73b77f4741ddea22b1c51f0c85ddf96ec4f7934db37"
+  },
+  "sites": {
+    "source": "KCA 전파누리 이동통신 무선국 찾기",
+    "sourceUrl": "https://spectrummap.kr/gis/mobile_service.do?menuNo=300480",
+    "queryUrl": "https://spectrummap.kr/gis/mobile_service.json?menuNo=300480&type=&latitude=37.5038&longitude=127.035&zoom=16&visibleRadius=1000",
+    "records": [
+      {
+        "uid": "322018110056585",
+        "address": "서울특별시 강남구 강남대로 548, (논현동)",
+        "call_name": "SKT5G논현역3AAUH",
+        "cls_name": "기지국",
+        "customer_name": "에스케이텔레콤 주식회사",
+        "customer_no": 542604,
+        "district_code": "11680108",
+        "is_allow": "Y",
+        "purpose_code": "G2000",
+        "service_code": "43",
+        "service_name": "이동전화(5G-NR(3.5㎓))서비스 제공용(지상_기지국)",
+        "position": [
+          127.021867,
+          37.511022
+        ]
+      },
+      {
+        "uid": "322018110055586",
+        "address": "서울특별시 서초구 강남대로 487, (반포동)",
+        "call_name": "SKT5G강남대로2AAUH",
+        "cls_name": "기지국",
+        "customer_name": "에스케이텔레콤 주식회사",
+        "customer_no": 542604,
+        "district_code": "11650107",
+        "is_allow": "Y",
+        "purpose_code": "G2000",
+        "service_code": "43",
+        "service_name": "이동전화(5G-NR(3.5㎓))서비스 제공용(지상_기지국)",
+        "position": [
+          127.023395,
+          37.505763
+        ]
+      },
+      {
+        "uid": "322018110056120",
+        "address": "서울특별시 강남구 강남대로 340, (역삼동)",
+        "call_name": "SKT5G강남역AAUH",
+        "cls_name": "기지국",
+        "customer_name": "에스케이텔레콤 주식회사",
+        "customer_no": 542604,
+        "district_code": "11680101",
+        "is_allow": "Y",
+        "purpose_code": "G2000",
+        "service_code": "43",
+        "service_name": "이동전화(5G-NR(3.5㎓))서비스 제공용(지상_기지국)",
+        "position": [
+          127.030294,
+          37.493566
+        ]
+      },
+      {
+        "uid": "322019110082019",
+        "address": "서울특별시 강남구 테헤란로 111, (역삼동)",
+        "call_name": "SKT5G역삼대건빌딩AAUH",
+        "cls_name": "기지국",
+        "customer_name": "에스케이텔레콤 주식회사",
+        "customer_no": 542604,
+        "district_code": "11680101",
+        "is_allow": "Y",
+        "purpose_code": "G2000",
+        "service_code": "43",
+        "service_name": "이동전화(5G-NR(3.5㎓))서비스 제공용(지상_기지국)",
+        "position": [
+          127.029264,
+          37.498874
+        ]
+      },
+      {
+        "uid": "322018110056128",
+        "address": "서울특별시 강남구 테헤란로 146, (역삼동)",
+        "call_name": "SKT5G역삼현익빌딩AAUH",
+        "cls_name": "기지국",
+        "customer_name": "에스케이텔레콤 주식회사",
+        "customer_no": 542604,
+        "district_code": "11680101",
+        "is_allow": "Y",
+        "purpose_code": "G2000",
+        "service_code": "43",
+        "service_name": "이동전화(5G-NR(3.5㎓))서비스 제공용(지상_기지국)",
+        "position": [
+          127.035469,
+          37.500015
+        ]
+      },
+      {
+        "uid": "322020110028086",
+        "address": "서울특별시 강남구 테헤란로 321, (역삼동)",
+        "call_name": "SKT5G역삼건화AAUH",
+        "cls_name": "기지국",
+        "customer_name": "에스케이텔레콤 주식회사",
+        "customer_no": 542604,
+        "district_code": "11680101",
+        "is_allow": "Y",
+        "purpose_code": "G2000",
+        "service_code": "43",
+        "service_name": "이동전화(5G-NR(3.5㎓))서비스 제공용(지상_기지국)",
+        "position": [
+          127.04614,
+          37.504012
+        ]
+      },
+      {
+        "uid": "322023110030420",
+        "address": "서울특별시 강남구 선릉로 563, (역삼동)",
+        "call_name": "SKT5G삼릉공원2AAUE",
+        "cls_name": "기지국",
+        "customer_name": "에스케이텔레콤 주식회사",
+        "customer_no": 542604,
+        "district_code": "11680101",
+        "is_allow": "Y",
+        "purpose_code": "G2000",
+        "service_code": "43",
+        "service_name": "이동전화(5G-NR(3.5㎓))서비스 제공용(지상_기지국)",
+        "position": [
+          127.044201,
+          37.508844
+        ]
+      },
+      {
+        "uid": "322022110051374",
+        "address": "서울특별시 강남구 학동로47길 5, 논현주차타워  (논현동)",
+        "call_name": "SKT5G논현3호주차장AAUE",
+        "cls_name": "기지국",
+        "customer_name": "에스케이텔레콤 주식회사",
+        "customer_no": 542604,
+        "district_code": "11680108",
+        "is_allow": "Y",
+        "purpose_code": "G2000",
+        "service_code": "43",
+        "service_name": "이동전화(5G-NR(3.5㎓))서비스 제공용(지상_기지국)",
+        "position": [
+          127.038577,
+          37.516953
+        ]
+      },
+      {
+        "uid": "322022110014953",
+        "address": "서울특별시 강남구 학동로 158, (논현동)",
+        "call_name": "SKT5G논현1동사무소AAUE",
+        "cls_name": "기지국",
+        "customer_name": "에스케이텔레콤 주식회사",
+        "customer_no": 542604,
+        "district_code": "11680108",
+        "is_allow": "Y",
+        "purpose_code": "G2000",
+        "service_code": "43",
+        "service_name": "이동전화(5G-NR(3.5㎓))서비스 제공용(지상_기지국)",
+        "position": [
+          127.028269,
+          37.512823
+        ]
+      }
+    ],
+    "selection": "Nine SKT (customer_no 542604), allowed outdoor base-station records (cls_name 기지국, is_allow Y, service_code 43, service_name containing 지상), chosen along the requested route. Non-exhaustive sample inventory.",
+    "accuracy": "Published registered coordinates copied without geocoding or jitter. Not a current on-site survey; no accuracy radius or current operating status was verified."
+  },
+  "roads": {
+    "provider": "OSRM public route service / OpenStreetMap",
+    "requestUrl": "https://router.project-osrm.org/route/v1/driving/127.0212,37.5112;127.0283,37.4979;127.0489,37.5045;127.0408,37.5164;127.0212,37.5112?overview=full&geometries=geojson&steps=true",
+    "sourceUrl": "https://www.openstreetmap.org/copyright",
+    "attribution": "© OpenStreetMap contributors",
+    "license": "OpenStreetMap ODbL 1.0",
+    "geometryFile": "gangnam-street-route.geojson"
+  },
+  "limitations": {
+    "kind": "synthetic-drive-example-with-official-registered-sites",
+    "measurements": "All KPI values, events, times and serving-sector assignments are synthetic examples; not measured SKT performance or ray-tracing output.",
+    "radioSites": "Only horizontal site positions, station names, addresses, operator, permit IDs and registered 5G service come from KCA public radio-station records. Registry positions may differ from current field conditions.",
+    "rfConfiguration": "Required height (30 m) and three-sector radio parameters are demonstration assumptions. SITE IDs are internal identifiers, not gNB/eNB IDs. Nearest selected station assigns a synthetic serving cell, not a real coverage relationship.",
+    "streetGeometry": "OSRM route using OpenStreetMap road geometry. Sample GPS coordinates are interpolated on that route. This is a sample loop, not an optimized measurement campaign.",
+    "sourceUrl": "https://spectrummap.kr/gis/mobile_service.do?menuNo=300480",
+    "queryUrl": "https://spectrummap.kr/gis/mobile_service.json?menuNo=300480&type=&latitude=37.5038&longitude=127.035&zoom=16&visibleRadius=1000",
+    "retrievedAt": "2026-10-01T15:59:20.391Z"
+  },
+  "import": [
+    "Project artifacts → Import planning manifest → gangnam-skt-drive-planning-manifest.json. Creates a new project and includes nine site markers and all GPS samples.",
+    "Open Ray tracing lab, choose RSRP or SINR, and use Fit drive route.",
+    "For CSV-only use: Ray tracing lab → Import drive test CSV. CSV import changes drive samples only; it does not position radio sites. Use the manifest for both sites and samples."
+  ]
+}

@@ -1,7 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultUseCases, validateUseCases, drivePlan, abPlan, datasetPlan } from './usecases.mjs';
+import { defaultUseCases, validateUseCases, drivePlan, abPlan, datasetPlan, buildUseCasePlanSpec } from './usecases.mjs';
 import { defaultProject, createManifest, validateProject } from './model.mjs';
+import { USE_CASE_CARD_ITEMS, useCaseCards } from './usecase-ui.mjs';
+
+test('mission-control workflow entry cards share their exact legacy labels and navigation IDs', () => {
+  const entries = [
+    ['drive', '⌁', 'Virtual drive test', 'Replay a planned software-UE route through the city scene.'],
+    ['ab', '⇄', 'Package A/B test', 'Pair RAN software packages under the same scene, traces, and seeds.'],
+    ['data', '▥', 'AI-RAN data generation', 'Specify EM or EM+RAN training data with provenance and leak-safe splits.'],
+  ];
+  assert.deepEqual(USE_CASE_CARD_ITEMS, entries);
+  assert.equal(useCaseCards(), `<div class="uc-cards">${entries.map(([id, icon, title, description]) =>
+    `<button class="uc-card" data-go="${id}"><span>${icon}</span><strong>${title}</strong><small>${description}</small><em>Open workspace →</em></button>`).join('')}</div>`);
+});
 
 test('drive test plans a reproducible route without fabricating radio KPIs', () => {
   const project = defaultProject();
@@ -58,4 +70,20 @@ test('manifest includes bounded planning specs, not experiment results or genera
   assert.equal(manifest.useCases.ab.verdict, null);
   assert.equal(manifest.useCases.data.generatedRows, 0);
   assert.equal(manifest.useCases.data.status, 'not-executed');
+});
+
+test('downloadable use-case plans retain the original planning-only schema and project scope', () => {
+  const project = defaultProject();
+  const original = structuredClone(project);
+  for (const [type, build] of [['drive', drivePlan], ['ab', abPlan], ['data', datasetPlan]]) {
+    const spec = buildUseCasePlanSpec(project, type);
+    assert.deepEqual(spec, {
+      schemaVersion: 1, mode: 'PLANNING_ONLY', useCase: type, city: project.map.city,
+      cluster: project.map.cluster, config: project.useCases[type], plan: build(project),
+      note: 'Not executed. No RF measurements, A/B verdict or training samples were generated.',
+    });
+  }
+  assert.equal(buildUseCasePlanSpec(project, 'ab').plan.verdict, null);
+  assert.deepEqual(project, original);
+  assert.throws(() => buildUseCasePlanSpec(project, 'unknown'), /Unknown use-case plan/);
 });

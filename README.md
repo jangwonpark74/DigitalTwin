@@ -1,25 +1,62 @@
 # Atlas RAN Twin — interactive 5G RAN mockup
 
-A local 5G RAN planning workspace with WGS84 scene import, a CesiumJS 3D globe, and an optional Sionna-RT path runner. It is not a connected RAN or a calibrated RF simulator.
+A local 5G RAN planning workspace with WGS84 scene import, a MapLibre open 3D map, and an optional Sionna-RT path runner. It is not a connected RAN or a calibrated RF simulator.
+
+**Open Silicon Valley example:** choose **City map → Explore 3D city** to view real OpenStreetMap building footprints in Palo Alto, Mountain View, and San Jose through MapLibre / OpenFreeMap. No map token is needed. Switch between 3D and 2D, inspect buildings, and toggle labels and geometry. Heights may be estimated; the example stays separate from project coordinates and RF inputs. See the [product design review and rendering proposal](docs/ui-ux-product-review.md).
 
 ## Run
 
+Install [Node.js 24 LTS](https://nodejs.org/en/download) (Node 22.12+ is also supported) and [Python 3.10+](https://www.python.org/downloads/); Python 3.13 is used in CI. The base application uses Python's standard library and SQLite, so no Python packages are needed. Run the following from the project folder on Windows 11, macOS or Linux:
+
+```text
+npm run setup
+npm start
+```
+
+Open the URL printed by the server, normally `http://127.0.0.1:8765/`, in Edge or Chrome. Stop with Ctrl+C. This builds the React frontend and starts the Python/SQLite API together. `npm run help` lists the portable commands; `npm run check` runs the full local validation gate. Make, WSL, Bash and administrator access are not required on Windows.
+
+On Windows 11, open PowerShell or Command Prompt in your checkout. If PowerShell blocks `npm.ps1`, use the bundled `npm.cmd` entry point without changing execution policy:
+
+```powershell
+cd 'C:\Projects\UI_UX_Mockup_Typescript'
+npm.cmd run setup
+npm.cmd start
+# In another terminal:
+npm.cmd run check
+```
+
+The launcher detects Windows `py -3`, `python` and `python3`, or Unix `python3` and `python`. To select a particular interpreter, set `ATLAS_PYTHON` to its executable path, without extra command arguments. Paths with spaces and Unicode are supported. For example, in PowerShell:
+
+```powershell
+$env:ATLAS_PYTHON = 'C:\Users\Your Name\AppData\Local\Programs\Python\Python313\python.exe'
+npm.cmd start -- --port 8766
+```
+
+An explicit `--port` or `PORT` requires that exact port. Otherwise startup checks up to 10 following ports and prints the actual URL. `--port-fallback` enables fallback for an explicit port; `--no-port-fallback` disables it. `AUTO_PORT=1`/`0` also controls fallback. `HOST` defaults to loopback. Set `$env:ATLAS_DB_PATH = 'C:\Atlas Data\twin.sqlite3'` in PowerShell to choose the SQLite location. Install dependencies separately on each computer with `npm run setup`; copied `node_modules` and virtual environments contain platform-specific binaries.
+
+For frontend development, run `npm run api` in one terminal and `npm run dev` in another. The Vite proxy expects the API at port 8765; if the API prints a different port, set `$env:ATLAS_API_ORIGIN = 'http://127.0.0.1:8766'` before starting Vite (or the equivalent environment variable in your shell). For browser tests, install Chromium with `npm exec --no -- playwright install chromium`, then run `npm run test:e2e`. The [cross-platform CI workflow](.github/workflows/cross-platform.yml) runs the full checks and browser suite on Windows and Ubuntu, including checkout paths with spaces. Native Windows execution remains to be confirmed by that workflow or a Windows 11 run; local validation in this change was performed on macOS.
+
+The existing macOS/Linux Make shortcuts remain available:
+
 ```bash
-cd /Users/parkjangwon/Project/UI_UX_Mockup
-make setup               # install pinned CesiumJS assets once
-make run                 # http://127.0.0.1:8765/
+make setup               # install pinned runtime and frontend dependencies
+make run                 # first available port from http://127.0.0.1:8765/
 # In another terminal: make check
 ```
 
-If this project is already serving on the requested port, `make run` prints its URL and exits successfully instead of starting a duplicate server. Stop an older server process with Ctrl+C and run `make run` again to enable new database routes. If a **different** service owns the port, use `make run PORT=8766` (or another free port). `make test` runs the deterministic model, use-case, task, management, SQLite and server-boundary suites; `make check` additionally checks JavaScript syntax. ES modules need an HTTP server, so opening `index.html` with `file://` is not supported. `make setup` runs `npm ci` from the checked-in lockfile; the server then serves CesiumJS from local `node_modules`. The UI uses a **white/light theme**.
+If this project is already serving on the requested port, `make run` prints its URL and exits successfully instead of starting a duplicate server. By default, an older server or another service on port 8765 makes the launcher check up to 10 following ports and print the actual URL; existing processes keep running. An explicit `PORT` (including an environment variable) requires that exact port, for example `make run PORT=8766`. Set `AUTO_PORT=0` to disable fallback or `AUTO_PORT=1` to allow fallback with an explicit port. `make test` runs the deterministic model, use-case, task, management, SQLite and server-boundary suites; `make check` additionally checks JavaScript syntax, strict frontend types, component/integration contracts, and the production Vite build. ES modules need an HTTP server, so opening `index.html` with `file://` is not supported. `make setup` installs the checked-in lockfile with both runtime and frontend development dependencies. The UI uses a **white/light theme**.
 
-See [the desktop UI/UX design specification](docs/uiux-design.md) and [the use-case contracts](docs/use-cases.md) for journeys, screen states, backend requirements and acceptance criteria.
+The React/TypeScript application is served at `/`; `make run` builds it with Vite and serves the static bundle and the existing Python/SQLite API. `npm run dev` starts Vite for frontend development, and `/frontend-preview.html` remains a development/test fixture for the Activity route. The React shell provides Mission Control, Projects, Activity, artifacts, the city map and site/radio planners, the Ray-tracing lab, RAN topology, Virtual UE fleet, Virtual drive test, Package A/B test, AI-RAN data generation, Hardware inventory, Software management, Monitoring, Schedule and Task board. These routes share one SQLite workspace controller for project selection, validated planning edits, planned-task creation, project-scoped RT run reads, and planning-manifest and use-case exports. Drive, Hardware and Radio currently use scoped HTML presenters within their React routes; route selection and the application shell are React-owned.
+
+Planning and evidence boundaries remain explicit: Drive traces, filters and playback are transient; synthetic data is labelled unmeasured and imported data unverified. Hardware selection is transient and capacity or alias values are plans, with zero discovered hosts or verified links. Virtual UEs, A/B pairs and dataset rows are planning-only, Software versions remain unverified, Monitoring remains offline/no-data, and planned Schedule/Task board work never dispatches. A stale-revision save keeps the local draft and offers read-only comparison, retry without automatic overwrite, or confirmation-gated database reload. Vite proxies `/api` to `http://127.0.0.1:8765` by default; set `ATLAS_API_ORIGIN` to target another local API. `make check` builds the production bundle and verifies API save/conflict behavior through the proxy plus production serving through Python. For real-browser checks, install Chromium once with `npm exec --no -- playwright install chromium`, then run `npm run test:e2e`.
+
+See [the desktop UI/UX design specification](docs/uiux-design.md) and [the use-case contracts](docs/use-cases.md) for journeys, screen states, backend requirements and acceptance criteria. For a comparison of TypeScript, React, Vue, Svelte, and other frontend directions, see [the frontend architecture proposals](docs/frontend-architecture-proposals.md); for the recommended Proposal 2 migration sequence, see [the frontend refactoring design](docs/frontend-refactoring-design.md).
 
 ## What you can do
 
 - Inspect a **schematic** starter canvas, select a site, and toggle buildings, sector wedges, and sampled UE markers.
-- Set the WGS84 center and radius; load a local GeoJSON FeatureCollection of building polygons, then switch between 2D footprints and a CesiumJS 3D globe with building extrusions at actual meter heights. Located radios use their latitude/longitude; unlocated radios appear only in the schematic 2D map until coordinates are set.
-- Open **City map & sites → Explore 3D city** for a generated city preview with Seoul, New York, San Francisco, and London camera presets. To stream real Cesium OSM Buildings with imagery and terrain, enter a Cesium ion access token in that view and select **Load live OSM Buildings**. The token is kept only in the tab’s memory and sent to Cesium ion by CesiumJS; it is not stored in SQLite. The city explorer never modifies project GeoJSON, radio coordinates, or Sionna-RT inputs.
+- Set the WGS84 center and radius; load a local GeoJSON FeatureCollection of building polygons, then switch between 2D footprints and a MapLibre open 3D map with building extrusions at actual meter heights. Located radios use their latitude/longitude; unlocated radios appear only in the schematic 2D map until coordinates are set.
+- Open **City map & sites → Explore 3D city** for real OpenFreeMap / OpenStreetMap building footprints in Palo Alto, Mountain View, and San Jose. MapLibre renders the open vector tiles without an API key. The explorer never modifies project geometry, radio coordinates, or solver inputs.
 - Load a local JSON file of ray paths for an overlaid 3D results view, path selection, path loss labels, and source metadata. Imported paths are unverified display data.
 - Run a bounded local Sionna-RT path job from the loaded footprint scene when the server uses a Sionna-enabled Python interpreter. Choose a geographically located transmitter site, receiver coordinates, frequency, sample count, and depth. The browser shows job status and overlays returned paths; this is a single-link, assumed-material model.
 - Add sites and edit three virtual cells per site: azimuth, downtilt, Tx power, bandwidth; choose virtual antenna or MMU.
@@ -44,11 +81,21 @@ The loopback-only JSON API exposes `GET /api/workspace`, `GET /api/projects`, `G
 
 ## Deployment boundary
 
-Target platform: **GH200 host, H200 GPU for channel/radio workloads, Grace CPU for software UE models**. The optional local path runner uses the resources of the machine that runs `serve.py`; it does not discover or reserve a GH200. When a token is supplied, CesiumJS streams OSM-derived 3D Tiles, imagery, and terrain from Cesium ion for visual exploration only. The app does not contact vCore/vDU, run a virtual RU, execute UEs, or assert that target hardware is available. Imported GeoJSON uses assumed concrete material in a local job; it is not RF-calibrated. The readiness checklist intentionally leaves external verification gates pending. Imported manifests cannot mark a deployment as verified.
+Target platform: **GH200 host, H200 GPU for channel/radio workloads, Grace CPU for software UE models**. The optional local path runner uses the resources of the machine that runs `serve.py`; it does not discover or reserve a GH200. OpenFreeMap streams OSM-derived vector tiles for visual context. The app does not contact vCore/vDU, run a virtual RU, execute UEs, or assert that target hardware is available. Imported GeoJSON uses assumed concrete material in a local job; it is not RF-calibrated. The readiness checklist intentionally leaves external verification gates pending.
 
 ## Run Sionna-RT paths
 
-The macOS system Python may be older than the Sionna-RT runtime requires. Set up the project's isolated Python 3.13 environment and run the real worker smoke test:
+Sionna-RT is optional. For Windows, macOS or Linux, install [uv](https://docs.astral.sh/uv/getting-started/installation/), then set up the isolated Python 3.13 environment and run the real worker smoke test:
+
+```text
+npm run rt:setup
+npm run test:rt
+npm start
+```
+
+The launcher uses `.venv-sionna-rt/Scripts/python.exe` on Windows and `.venv-sionna-rt/bin/python` on macOS/Linux. CPU ray tracing also requires a working LLVM backend; see [Sionna's installation requirements](https://nvlabs.github.io/sionna/installation.html) and [Dr.Jit's LLVM instructions, including Windows installers](https://drjit.readthedocs.io/en/latest/what.html#backends). Native Windows Sionna-RT jobs have not been verified here; run `npm run test:rt` to verify your installed backend. The base UI, imports and SQLite API run without this optional setup.
+
+On macOS/Linux, the equivalent shortcuts are:
 
 ```bash
 make rt-setup
@@ -64,16 +111,28 @@ The local worker and HTTP API were exercised on macOS with Sionna-RT 2.1.0 and a
 
 ## Local scene and ray import
 
-Use **City map & sites → Load building GeoJSON** with [demo-buildings.geojson](examples/demo-buildings.geojson), then **Ray-tracing lab → Load ray paths JSON** with [demo-rays.json](examples/demo-rays.json) to try the viewer. These fixtures are synthetic examples. Imports and metadata stay in the active project's SQLite record and planning manifest.
+Use **City map & sites → Load building GeoJSON** with [demo-buildings.geojson](examples/demo-buildings.geojson), then **Ray-tracing lab → Import ray path JSON** with [demo-rays.json](examples/demo-rays.json) to try the viewer. These fixtures are synthetic examples. Imports and metadata stay in the active project's SQLite record and planning manifest.
 
 GeoJSON must be a `FeatureCollection` with `Polygon` or `MultiPolygon` exterior rings in WGS84 `[longitude, latitude]` order (`EPSG:4326` / CRS84). Inner holes, terrain, materials, and other CRS values are outside this viewer's import contract. Heights come from `height` or `height_m` in meters, then `building:levels`/`levels` at an assumed 3 m per level, or a 12 m default. The viewer accepts up to 500 footprints with 64 vertices each in a file under 2 MB; the scene must fit a 20 km radius.
 
-Ray JSON uses `schemaVersion: 1`, `kind: "ray-paths"`, `coordinateSystem: "EPSG:4326"`, `runId`, `solver`, and 1–200 `paths`. Each path has an `id`, `pathLossDb`, and 2–16 `points` with `latitude`, `longitude`, and `heightM`. The file limit is 1 MB. The UI tags all such results **imported/unverified** and keeps the illustrative planning proxy separate. The project and ray views place local paths and buildings on a WGS84 ellipsoid without terrain or imagery. The separate city explorer can stream Cesium terrain and imagery, but does not import that content into the project or propagation simulation.
+Ray JSON uses `schemaVersion: 1`, `kind: "ray-paths"`, `coordinateSystem: "EPSG:4326"`, `runId`, `solver`, and 1–200 `paths`. Each path has an `id`, `pathLossDb`, and 2–16 `points` with `latitude`, `longitude`, and `heightM`. The ray file limit is 3 MB. The UI tags all such results **imported/unverified** and keeps the illustrative planning proxy separate. The project and ray views use MapLibre with altitude-aware 3D path overlays. Streamed map geometry is visual context only; imported GeoJSON supplies solver geometry.
 
-For a production implementation, add an OSM-to-Sionna scene pipeline with coordinate/material validation; RU/antenna/MMU and UE adapters; durable Sionna-RT job artifacts and radio maps; authenticated, read-only-first vCore/vDU test integration; and measured-vs-simulated calibration. The visual Cesium OSM Buildings layer does not supply calibrated RF geometry. Do not feed the illustrative metrics into operational decisions.
+For a production implementation, add an OSM-to-Sionna scene pipeline with coordinate/material validation; RU/antenna/MMU and UE adapters; durable Sionna-RT job artifacts and radio maps; authenticated, read-only-first vCore/vDU test integration; and measured-vs-simulated calibration. The open map context layer does not supply calibrated RF geometry. Do not feed the illustrative metrics into operational decisions.
 
 ## Source context
 
 - [Sionna RT introduction](https://nvlabs.github.io/sionna/rt/tutorials/Introduction.html): scene construction and OSM/Blender workflow.
 - [NVIDIA Aerial](https://developer.nvidia.com/topics/telecommunications/ai-aerial): broader telecom accelerated-computing stack.
 - [NVIDIA Aerial DT RAN modes](https://docs.nvidia.com/aerial/aerial-dt/archive/1.2.0/text/ran_digital_twin.html): distinguishes EM-only and RAN-integrated simulation. This mockup implements neither mode.
+
+### Open 3D 5G propagation lab
+
+The Ray-tracing lab uses a full-width MapLibre 3D map with a taller desktop and mobile viewport. **Import drive test CSV** displays GPS samples and route segments colored by RSRP, SINR, RSRQ, or DL/UL throughput. Filter LTE/5G NR, use **Fit drive route**, and click a point or scrub the sample inspector to see its coordinates, serving cell, events and KPIs. GPS imports from **Virtual drive test** are also saved in the active project and shared with the lab. Imported values remain unverified and are separate from ray-tracing predictions; schematic demo rows are never mapped onto geographic streets.
+
+CSV imports require `time_s,technology,serving_cell,latitude,longitude,rsrp_dbm,rsrq_db,sinr_db,dl_mbps,ul_mbps`; `event` is optional. The limit is 1 MB / 5,000 rows. GPS positions are not snapped to roads. Route segments do not bridge filtered-out samples, gaps over 30 seconds, or jumps over 300 meters. The color legend uses the Drive workspace's example thresholds.
+
+The [Gangnam example](examples/gangnam-drive-test/gangnam-nonhyeon-teheran-synthetic-drive.csv) contains 676 synthetic NR GPS samples along an 8.6 km Nonhyeon / Gangnam / Teheran-ro / Hakdong-ro street loop. Import the [companion planning manifest](examples/gangnam-drive-test/gangnam-skt-drive-planning-manifest.json) through **Project artifacts → Import planning manifest** to create a separate project with the samples and nine SKT 5G stations at their KCA registered coordinates. Antenna heights, sector settings, serving-cell assignments and KPIs are demonstration assumptions. The [base station fetch method](docs/skt-base-station-data-fetch.md) documents the public requests, filters, selected records, coordinate handling and reproduction steps.
+
+Load building GeoJSON in **Scene inputs**, or use **Use visible map buildings** to explicitly replace the RF scene and saved paths with up to 200 captured open-map footprints, then place the transmitter and receiver directly on the map. **Trace geometric paths** previews direct visibility, blockage, and up to twelve single specular reflections on imported vertical walls. Select a path to inspect its geometric length and travel time, and toggle path and open-map context layers. This bounded preview considers the nearest 120 wall candidates, assumes flat ground, and excludes indoor terminals, roof reflections, diffraction, materials and RF power prediction. The lab has no beam configuration panel.
+
+Use **Run Sionna-RT paths** for the optional local solver, or import saved WGS84 ray JSON. Saved results render in a separate map mode and retain uncalibrated / unverified provenance. The existing Sionna-RT runner assumes isotropic antennas. Streamed OSM buildings become project inputs only through the explicit capture action. Captured polygons may be tile-clipped; holes, elevated structures and invalid rings are skipped, all source heights remain assumed, and geometry/material validation gates reset. Imported project geometry, drive KPIs and ray overlays remain available when open map context fails.

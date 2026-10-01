@@ -1,0 +1,8 @@
+// Shared UE presentation; the original root and isolated React fallback render the same planning-only HTML.
+const format = new Intl.NumberFormat('en-US');
+
+export function renderVirtualUeView(project, h) {
+  const count = project.ue.count;
+  return h.header('Virtual UE fleet','Design a CPU-based software UE population on the GH200 Grace CPU.') + h.banner() +
+    `<div class="lower-grid">${h.panel('UE workload configuration','No UE processes are running in the browser', `<div class="form-grid pad">${h.field('UE population','ue.count',count,'number','min="1" max="50000"')}<label class="form-field"><span>Mobility profile</span><select class="select" data-field="ue.mobility">${['Urban pedestrian','Static hotspots','Vehicular cluster'].map(x => `<option ${project.ue.mobility===x?'selected':''}>${x}</option>`).join('')}</select></label>${h.field('Reproducibility seed','ue.seed',project.ue.seed,'number','min="0" max="999999"')}</div><div class="detail-copy">UE entities are virtual software models targeted to Grace CPU. No real or emulated 5G protocol stack is running yet.</div>`,h.badge('CPU TARGET'))}${h.panel('Fleet allocation preview','Planning-only distribution by selected sites', `<div class="site-rows">${project.sites.map((s,i) => `<button class="site-row" data-site-select="${s.id}"><span><strong>${h.escape(s.name)}</strong><small>${s.id} · 3 sectors</small></span><b>${format.format(Math.floor(count/project.sites.length)+(i<count%project.sites.length?1:0))} UEs</b></button>`).join('')}</div><div class="detail-copy">Even distribution for layout preview. Mobility, association, interference, scheduling and KPI collection require an actual UE/RAN simulation backend.</div>`,h.badge(`${format.format(count)} PLANNED`))}</div>`;
+}

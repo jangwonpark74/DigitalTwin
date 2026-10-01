@@ -15,13 +15,14 @@ import uuid
 from datetime import datetime, timezone
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from rt_worker import validate_job
 from storage import ProjectStore, StoreConflict
 
 ROOT = Path(__file__).resolve().parent
+FRONTEND_BUILD_ROOT = ROOT / "dist"
 
 
 def sionna_python():
@@ -124,6 +125,20 @@ class LocalDevRequestHandler(SimpleHTTPRequestHandler):
 
     store = ProjectStore(Path(os.environ.get("ATLAS_DB_PATH", ROOT / "state" / "atlas-ran-twin.sqlite3")))
     job_manager = JobManager(store=store)
+
+    def translate_path(self, path):
+        request_path = unquote(urlsplit(path).path)
+        if request_path in ("/", "/index.html", "/frontend-preview.html"):
+            relative = PurePosixPath("index.html")
+        elif request_path.startswith("/frontend-preview/assets/"):
+            relative = PurePosixPath(request_path.lstrip("/"))
+        else:
+            return super().translate_path(path)
+        build_root = FRONTEND_BUILD_ROOT.resolve()
+        candidate = (build_root / Path(*relative.parts)).resolve()
+        if candidate != build_root and build_root not in candidate.parents:
+            return str(build_root / "__invalid_frontend_path__")
+        return str(candidate)
 
     def _json(self, status, payload):
         data = json.dumps(payload, allow_nan=False).encode("utf-8")
@@ -283,13 +298,19 @@ def existing_server_status(host, port):
     """Distinguish this live API from an older process serving fresh files."""
     probe_host = "127.0.0.1" if host in ("0.0.0.0", "::") else host
     try:
-        for name in ("index.html", "app.mjs"):
-            expected = (ROOT / name).read_bytes()
+        for name in ("index.html", "src/main.tsx"):
+            expected_path = FRONTEND_BUILD_ROOT / name if name == "index.html" else ROOT / name
+            expected = expected_path.read_bytes()
             connection = http.client.HTTPConnection(probe_host, port, timeout=2)
             try:
                 connection.request("GET", "/" + name)
                 response = connection.getresponse()
-                if response.status != 200 or response.read(len(expected) + 1) != expected:
+                body = response.read(len(expected) + 1)
+                if response.status != 200:
+                    return "foreign"
+                if body != expected:
+                    if name == "index.html" and body == (ROOT / name).read_bytes():
+                        return "stale"
                     return "foreign"
             finally:
                 connection.close()
@@ -308,27 +329,47 @@ def existing_server_status(host, port):
         return "foreign"
 
 
+class LocalDevHTTPServer(ThreadingHTTPServer):
+    # Chromium loads split JS/CSS assets concurrently. Keep their short burst
+    # above the standard five-connection backlog instead of resetting a load.
+    request_queue_size = 32
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Serve the Atlas RAN Twin mockup")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--port-fallback", action="store_true", help="Try up to 10 following ports when the requested port is occupied")
     args = parser.parse_args(argv)
-    url = f"http://{args.host}:{args.port}/"
+    if not 0 <= args.port <= 65535:
+        parser.error("--port must be between 0 and 65535")
     handler = partial(LocalDevRequestHandler, directory=str(ROOT))
-    try:
-        server = ThreadingHTTPServer((args.host, args.port), handler)
-    except OSError as exc:
-        if exc.errno == errno.EADDRINUSE:
-            status = existing_server_status(args.host, args.port)
+    last_port = min(args.port + (10 if args.port_fallback else 0), 65535)
+    for port in range(args.port, last_port + 1):
+        url = f"http://{args.host}:{port}/"
+        try:
+            server = LocalDevHTTPServer((args.host, port), handler)
+            url = f"http://{args.host}:{server.server_port}/"
+            break
+        except OSError as exc:
+            if exc.errno != errno.EADDRINUSE:
+                print(f"Cannot start Atlas RAN Twin at {url}: {exc}", file=sys.stderr)
+                return 2
+            status = existing_server_status(args.host, port)
             if status == "current":
                 print(f"Atlas RAN Twin is already running at {url}", flush=True)
                 return 0
+            if args.port_fallback:
+                owner = "An older Atlas RAN Twin server" if status == "stale" else "Another service"
+                print(f"{owner} owns port {port}; checking the next available port.", flush=True)
+                continue
             if status == "stale":
-                print(f"An older Atlas RAN Twin server owns port {args.port}. Stop it with Ctrl+C and run make run again, or use PORT={args.port + 1}.", file=sys.stderr)
+                print(f"An older Atlas RAN Twin server owns port {port}. Stop it with Ctrl+C and run make run again, or use PORT={port + 1}.", file=sys.stderr)
                 return 2
-            print(f"Port {args.port} is in use by another service. Try make run PORT={args.port + 1}.", file=sys.stderr)
+            print(f"Port {port} is in use by another service. Try make run PORT={port + 1}.", file=sys.stderr)
             return 2
-        print(f"Cannot start Atlas RAN Twin at {url}: {exc}", file=sys.stderr)
+    else:
+        print(f"No available port from {args.port} to {last_port}. Try make run PORT=<free-port>.", file=sys.stderr)
         return 2
     try:
         LocalDevRequestHandler.store.interrupt_incomplete_runs()

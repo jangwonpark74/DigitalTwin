@@ -49,7 +49,7 @@ function infrastructureInspector(node, topology) {
   return `<div class="hwx-inspector-head"><span class="hwx-overline">${vdu?'REAL RAN COMPUTE':'PHYSICAL INTERCONNECT'} · TARGET</span><h2>${vdu?'vDU server pool':'Ethernet switch fabric'}</h2><p>${vdu?'Upstream of virtual O-RAN RU':'Interconnects vDU and four GH200 pools'}</p><span class="hwx-status">NOT DISCOVERED</span></div><div class="hwx-inspector-block"><h3>Known plan</h3>${capacityField(vdu?'Target vDU hosts':'Target switch ports',vdu?'vdu':'switch',vdu?topology.vduServerCount:topology.switchPortCount,vdu?64:512)}<div class="hwx-pair"><span>${vdu?'Host identity':'Switch model'}</span><b>TBD</b></div><div class="hwx-pair"><span>Physical port map</span><b>TBD</b></div><div class="hwx-pair"><span>Validated links</span><b>0</b></div></div><div class="hwx-inspector-note">Document physical host and switch identifiers before an integration can report real inventory.</div>`;
 }
 
-export function hardwareView(project, h, {mode='network', selectedNode='GH-POOL-01', selectedLink=null, selectedServer=null, isometric=true}={}) {
+export function hardwareView(project, h, {mode='network', selectedNode='GH-POOL-01', selectedLink=/** @type {string | null} */ (null), selectedServer=/** @type {string | null} */ (null), isometric=true}={}) {
   const management=project.management, topology=management.topology, summary=topologySummary(management);
   const activeMode=['network','racks','inventory'].includes(mode)?mode:'network';
   const link=topology.links.find(item=>item.id===selectedLink);

@@ -1,0 +1,46 @@
+name: Cross-platform checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: atlas workspace
+    env:
+      ATLAS_PYTHON: python
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Exercise paths with spaces on both platforms.
+          path: atlas workspace
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: atlas workspace/package-lock.json
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Install pinned dependencies including platform bindings
+        run: npm run setup
+      - name: Test, typecheck, build and verify local startup and API
+        run: npm run check
+      - name: Install browser
+        run: npm exec --no -- playwright install --with-deps chromium
+      - name: Browser workflows
+        run: npm run test:e2e

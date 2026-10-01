@@ -8,9 +8,14 @@ function inputField(label,path,value,type='text',attrs='') {
 }
 function workflow(steps) { return `<div class="uc-workflow">${steps.map((step,i) => `<div><b>${String(i+1).padStart(2,'0')}</b><span>${step}</span></div>`).join('<i>→</i>')}</div>`; }
 function blockedNotice(description) { return `<div class="uc-notice"><strong>PLANNED · NOT EXECUTED</strong><span>${description}</span></div>`; }
+/** @type {ReadonlyArray<readonly ['drive' | 'ab' | 'data', string, string, string]>} */
+export const USE_CASE_CARD_ITEMS = Object.freeze([
+  ['drive','⌁','Virtual drive test','Replay a planned software-UE route through the city scene.'],
+  ['ab','⇄','Package A/B test','Pair RAN software packages under the same scene, traces, and seeds.'],
+  ['data','▥','AI-RAN data generation','Specify EM or EM+RAN training data with provenance and leak-safe splits.'],
+]);
 export function useCaseCards() {
-  const entries=[['drive','⌁','Virtual drive test','Replay a planned software-UE route through the city scene.'],['ab','⇄','Package A/B test','Pair RAN software packages under the same scene, traces, and seeds.'],['data','▥','AI-RAN data generation','Specify EM or EM+RAN training data with provenance and leak-safe splits.']];
-  return `<div class="uc-cards">${entries.map(([id,icon,title,description]) => `<button class="uc-card" data-go="${id}"><span>${icon}</span><strong>${title}</strong><small>${description}</small><em>Open workspace →</em></button>`).join('')}</div>`;
+  return `<div class="uc-cards">${USE_CASE_CARD_ITEMS.map(([id,icon,title,description]) => `<button class="uc-card" data-go="${id}"><span>${icon}</span><strong>${title}</strong><small>${description}</small><em>Open workspace →</em></button>`).join('')}</div>`;
 }
 export function driveView(p,h,position=0,playing=false,includeShell=true) {
   const plan=drivePlan(p), cfg=p.useCases.drive, pos=plan.samples[Math.min(position,plan.samples.length-1)];

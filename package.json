@@ -2,7 +2,45 @@
   "name": "atlas-ran-twin-mockup",
   "private": true,
   "version": "0.2.0",
+  "type": "module",
+  "engines": {
+    "node": "^22.12.0 || >=24.0.0"
+  },
+  "scripts": {
+    "help": "node scripts/atlas.mjs help",
+    "setup": "npm ci --include=dev --include=optional --no-audit --no-fund",
+    "start": "node scripts/atlas.mjs start",
+    "api": "node scripts/atlas.mjs api",
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/atlas.mjs test",
+    "test:ui": "node scripts/atlas.mjs test:ui",
+    "test:integration": "node scripts/atlas.mjs test:integration",
+    "test:e2e": "playwright test",
+    "check": "node scripts/atlas.mjs check",
+    "rt:setup": "node scripts/atlas.mjs rt:setup",
+    "test:rt": "node scripts/atlas.mjs test:rt"
+  },
   "dependencies": {
-    "cesium": "1.145.0"
+    "maplibre-gl": "5.23.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.7",
+    "@types/node": "26.6.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "jsdom": "27.2.0",
+    "typescript": "5.9.3",
+    "vite": "8.3.1",
+    "vitest": "4.1.11"
   }
 }

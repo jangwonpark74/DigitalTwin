@@ -3,33 +3,50 @@ NODE ?= node
 UV ?= uv
 HOST ?= 127.0.0.1
 PORT ?= 8765
+AUTO_PORT ?= $(if $(filter file,$(origin PORT)),1,0)
 RT_VENV ?= .venv-sionna-rt
 RT_PYTHON_VERSION ?= 3.13
 SIONNA_RT_VERSION ?= 2.1.0
 SIONNA_RT_PYTHON ?= $(RT_VENV)/bin/python
 
-.PHONY: help setup rt-setup run test test-rt check
+.PHONY: help setup rt-setup run test test-rt typecheck ui-test frontend-integration build e2e check
 
 help:
 	@printf 'Atlas RAN Twin mockup\n'
-	@printf '  make setup            Install pinned CesiumJS assets locally with npm ci\n'
-	@printf '  make run              Serve this mockup or reuse its existing server at http://$(HOST):$(PORT)/\n'
+	@printf '  make setup            Install pinned runtime and frontend development dependencies\n'
+	@printf '  make run              Build and serve the React app and local API (first free port from $(PORT))\n'
 	@printf '  make test             Run deterministic JavaScript and Python tests\n'
+	@printf '  npm run dev           Start the Vite development server for the React app\n'
+	@printf '  npm run test:e2e      Run the Playwright browser smoke tests\n'
 	@printf '  make rt-setup         Install Sionna-RT into an isolated Python 3.13 environment\n'
 	@printf '  make test-rt          Run the real Sionna-RT path smoke test\n'
-	@printf '  make check            Run model, server, RT geometry tests and JavaScript syntax checks\n'
+	@printf '  make check            Run tests, strict TypeScript checks, Vite build and JavaScript syntax checks\n'
 	@printf '  make run PORT=8766    Use a different port when 8765 is busy\n'
+	@printf '  Windows 11: npm run setup, npm start, npm run check (no Make required)\n'
 
 setup:
-	npm ci --no-audit --no-fund
+	npm run setup
 
-run:
-	@test -f node_modules/cesium/Build/Cesium/Cesium.js || { printf 'CesiumJS assets are missing. Run make setup first.\n' >&2; exit 1; }
-	@SIONNA_RT_PYTHON="$(SIONNA_RT_PYTHON)" $(PYTHON) serve.py --host "$(HOST)" --port "$(PORT)"
+run: build
+	@SIONNA_RT_PYTHON="$(SIONNA_RT_PYTHON)" $(PYTHON) serve.py --host "$(HOST)" --port "$(PORT)" $(if $(filter 1,$(AUTO_PORT)),--port-fallback)
 
 test:
-	$(NODE) --test model.test.mjs usecases.test.mjs tasks.test.mjs management.test.mjs dm.test.mjs workspaces.test.mjs artifacts.test.mjs hardware-ui.test.mjs radio-ui.test.mjs scene.test.mjs rt-job.test.mjs
-	$(PYTHON) -m unittest -q test_serve.py test_rt_worker.py test_storage.py
+	ATLAS_PYTHON="$(PYTHON)" $(NODE) scripts/atlas.mjs test
+
+typecheck:
+	npm run typecheck
+
+ui-test:
+	npm run test:ui
+
+frontend-integration:
+	npm run test:integration
+
+build:
+	npm run build
+
+e2e:
+	npm run test:e2e
 
 rt-setup:
 	$(UV) venv --allow-existing --python "$(RT_PYTHON_VERSION)" "$(RT_VENV)"
@@ -43,7 +60,7 @@ test-rt:
 	fi
 	SIONNA_RT_PYTHON="$(SIONNA_RT_PYTHON)" $(PYTHON) -m unittest -q test_rt_integration.py
 
-check: test
-	@for file in app.mjs model.mjs usecases.mjs usecase-ui.mjs tasks.mjs management.mjs ops-ui.mjs dm.mjs dm-ui.mjs workspaces.mjs artifacts.mjs hardware-workspace.mjs hardware-ui.mjs radio-ui.mjs scene.mjs scene-ui.mjs rt-job.mjs; do \
+check: test typecheck ui-test frontend-integration
+	@for file in activity-ui.mjs stack-ui.mjs ue-ui.mjs drive-workspace-ui.mjs model.mjs usecases.mjs usecase-ui.mjs tasks.mjs management.mjs ops-ui.mjs dm.mjs dm-ui.mjs workspaces.mjs artifacts.mjs hardware-workspace.mjs hardware-ui.mjs radio-ui.mjs scene.mjs scene-ui.mjs rt-job.mjs; do \
 		$(NODE) --check "$$file" || exit 1; \
 	done

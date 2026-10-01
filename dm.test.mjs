@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultProject } from './model.mjs';
 import { drivePlan } from './usecases.mjs';
-import { makeDemoTrace, parseDmCsv, analyzeDmTrace, DM_METRICS } from './dm.mjs';
+import { makeDemoTrace, parseDmCsv, analyzeDmTrace, buildDmAnalysisReport, DM_METRICS } from './dm.mjs';
 
 const fixture=`time_s,technology,serving_cell,x_pct,y_pct,rsrp_dbm,rsrq_db,sinr_db,dl_mbps,ul_mbps,event\n0,4G,SITE-01-C1,10,20,-90,-9,17,35,8,\n1,5G,SITE-01-C1,20,25,-115,-16,-2,3,1,handover\n2,NR,SITE-02-C1,30,27,-117,-17,-3,2,0.5,\n3,LTE,SITE-02-C1,40,30,-96,-12,7,22,5,\n`;
 
@@ -58,4 +58,25 @@ test('CSV supports GPS columns only as normalized schematic positioning', () => 
   assert.equal(trace.coordinateMode,'gps-normalized-schematic');
   assert.deepEqual(trace.samples.map(x=>[x.x,x.y]),[[10,90],[90,10]]);
   assert.equal(trace.samples[0].latitude,37.5);
+});
+
+test('DM download preserves source-labelled filters, summary and events without raw data or verdicts', () => {
+  const project=defaultProject(), demo=makeDemoTrace(project,drivePlan(project));
+  const before=structuredClone(demo);
+  const report=buildDmAnalysisReport(demo,{technology:'NR',metric:'sinr'});
+  const {filtered,events,...summary}=analyzeDmTrace(demo.samples,{technology:'NR',metric:'sinr'});
+  assert.deepEqual(report,{schemaVersion:1,kind:'4G-5G-DM-ANALYSIS',source:'synthetic-demo',
+    provenance:'illustrative-not-measured',filename:null,coordinateMode:demo.coordinateMode,
+    filters:{technology:'NR',metric:'sinr'},summary,
+    events:events.map(s=>({sampleIndex:s.index,timeS:s.timeS,technology:s.technology,servingCell:s.servingCell,event:s.event})),
+    note:'UI-only analysis. No Sionna-RT execution, verified 4G/5G measurement, or network acceptance verdict is implied.'});
+  assert.equal(Object.hasOwn(report,'samples'),false);
+  assert.equal(filtered.length,summary.sampleCount);
+  assert.deepEqual(demo,before);
+  const imported=buildDmAnalysisReport(parseDmCsv(fixture),{filename:'local.csv',technology:'NR',metric:'rsrp'});
+  assert.equal(imported.source,'imported-unverified');
+  assert.equal(imported.provenance,'imported-unverified');
+  assert.equal(imported.filename,'local.csv');
+  assert.equal(imported.summary.sampleCount,2);
+  assert.throws(()=>buildDmAnalysisReport(demo,{metric:'unknown'}),/Unknown DM metric/);
 });

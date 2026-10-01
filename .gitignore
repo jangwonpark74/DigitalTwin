@@ -1,6 +1,10 @@
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
 /node_modules/
+/dist/
+/playwright-report/
+/test-results/
+/coverage/
 /state/
 
 # Python test and local server bytecode.

@@ -1,0 +1,123 @@
+import { clickWorkspaceButton, openMobileNavigation } from './navigation';
+import { expect, test } from '@playwright/test';
+import { createWorkspaceState } from '../../workspaces.mjs';
+import type { WorkspaceSnapshot } from '../../src/api/schemas';
+
+const firstId = '11111111-1111-4111-8111-111111111111';
+const secondId = '22222222-2222-4222-8222-222222222222';
+const csv = `time_s,technology,serving_cell,x_pct,y_pct,rsrp_dbm,rsrq_db,sinr_db,dl_mbps,ul_mbps,event
+0,LTE,SITE-01-C1,10,20,-90,-9,17,35,8,
+1,NR,SITE-02-C1,20,25,-115,-16,-2,3,1,handover
+`;
+
+test('Drive preview keeps measurement provenance, keyboard playback, scoped plan edits and downloads', async ({ page }) => {
+  const initial = createWorkspaceState(undefined, { id: firstId, now: () => '2026-01-01T00:00:00Z' }) as WorkspaceSnapshot;
+  const second = structuredClone(initial.projects[0]);
+  second.id = secondId;
+  second.name = 'Second Drive Pilot';
+  second.project.name = second.name;
+  const database = { revision: 2, workspace: { ...initial, projects: [...initial.projects, second] } };
+  await page.route('**/api/workspace', async route => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(database) });
+      return;
+    }
+    const payload = route.request().postDataJSON() as { revision: number; workspace: WorkspaceSnapshot };
+    if (payload.revision !== database.revision) {
+      await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ error: 'Revision conflict' }) });
+      return;
+    }
+    database.workspace = payload.workspace;
+    database.revision++;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ revision: database.revision }) });
+  });
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/frontend-preview.html');
+  await page.getByRole('button', { name: 'Preview activity route' }).click();
+  await clickWorkspaceButton(page, /USE CASES/i);
+  await clickWorkspaceButton(page, 'Virtual drive test');
+  const drive = page.getByRole('region', { name: 'Drive preview route' });
+  await expect(drive.getByText('SYNTHETIC DEMO · NOT MEASURED')).toBeVisible();
+  await expect(drive.getByText('NO ACCEPTANCE VERDICT')).toBeVisible();
+  const slider = drive.getByRole('slider', { name: 'DM trace sample' });
+  await slider.focus();
+  await slider.press('ArrowRight');
+  await expect(slider).toHaveValue('1');
+  await expect(slider).toBeFocused();
+  await drive.getByRole('button', { name: /Play trace/ }).click();
+  await slider.focus();
+  await expect(slider).toBeFocused();
+  await expect.poll(async () => Number(await slider.inputValue())).toBeGreaterThan(1);
+  await expect(slider).toBeFocused();
+  await drive.getByRole('tab', { name: 'Route & simulation plan' }).click();
+  const exportPlanButton = drive.getByRole('button', { name: /Export drive job plan/ });
+  await expect(drive.getByRole('tab', { name: 'Route & simulation plan' })).toBeFocused();
+  await expect(drive.getByText('NO MEASUREMENTS')).toBeVisible();
+  await drive.getByRole('spinbutton', { name: 'Samples along route' }).fill('32');
+  await drive.getByRole('spinbutton', { name: 'Samples along route' }).press('Tab');
+  await expect.poll(() => (database.workspace.projects[0].project.useCases as { drive: { samples: number } }).drive.samples).toBe(32);
+  expect((database.workspace.projects[1].project.useCases as { drive: { samples: number } }).drive.samples).toBe(48);
+  await expect.poll(() => database.workspace.projects[0].activity[0]?.title).toBe('Use-case setting changed');
+  await drive.getByRole('spinbutton', { name: 'Samples along route' }).fill('501');
+  await drive.getByRole('spinbutton', { name: 'Samples along route' }).press('Tab');
+  await expect(drive.getByRole('spinbutton', { name: 'Samples along route' })).toHaveValue('32');
+  await expect(page.getByRole('alert')).toContainText('Drive sample count must be 8–500');
+  await drive.getByRole('spinbutton', { name: 'Samples along route' }).fill('34');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  const planDownload = page.waitForEvent('download');
+  await exportPlanButton.click();
+  expect((await planDownload).suggestedFilename()).toBe('atlas-ran-drive-plan.json');
+  await expect.poll(() => database.workspace.projects[0].activity.some(entry => entry.title === 'Use-case plan exported')).toBe(true);
+  expect((database.workspace.projects[0].project.useCases as { drive: { samples: number } }).drive.samples).toBe(34);
+  await page.reload();
+  await page.getByRole('button', { name: 'Preview activity route' }).click();
+  await clickWorkspaceButton(page, /USE CASES/i);
+  await clickWorkspaceButton(page, 'Virtual drive test');
+  await drive.getByRole('tab', { name: 'Route & simulation plan' }).click();
+  await expect(drive.getByRole('spinbutton', { name: 'Samples along route' })).toHaveValue('34');
+  await page.getByRole('combobox', { name: 'Active project' }).selectOption(secondId);
+  await expect(drive.getByText('SYNTHETIC DEMO · NOT MEASURED')).toBeVisible();
+  await drive.getByRole('tab', { name: 'Route & simulation plan' }).click();
+  await expect(drive.getByRole('spinbutton', { name: 'Samples along route' })).toHaveValue('48');
+  await drive.getByRole('tab', { name: '4G/5G DM analysis' }).click();
+  const importButton = drive.getByRole('button', { name: /Import DM CSV/ });
+  await expect(importButton).toBeVisible({ timeout: 3000 });
+  await importButton.focus();
+  const badChooser = page.waitForEvent('filechooser');
+  await importButton.press('Enter');
+  await (await badChooser).setFiles({ name: 'bad.csv', mimeType: 'text/csv', buffer: Buffer.from('wrong') });
+  await expect(page.getByRole('alert')).toContainText('Missing columns');
+  await expect(drive.getByText('SYNTHETIC DEMO · NOT MEASURED')).toBeVisible();
+  const chooser = page.waitForEvent('filechooser');
+  await importButton.press('Enter');
+  await (await chooser).setFiles({ name: 'field.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
+  await expect(drive.getByText('IMPORTED CSV · UNVERIFIED')).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(drive.getByText(/Local file field.csv/)).toBeVisible();
+  await expect.poll(() => database.workspace.projects[1].activity[0]?.title).toBe('DM trace imported');
+  await drive.getByRole('combobox', { name: 'Radio access' }).selectOption('NR');
+  await drive.locator('[data-dm-jump="1"]').first().click();
+  await expect(drive.locator('#dm-selected')).toContainText('Sample #2');
+  const reportDownload = page.waitForEvent('download');
+  await drive.getByRole('button', { name: /Analysis JSON/ }).click();
+  const report = await reportDownload;
+  expect(report.suggestedFilename()).toBe('atlas-ran-dm-analysis.json');
+  const payload = JSON.parse(await (await import('node:fs/promises')).readFile(await report.path(), 'utf8'));
+  expect(payload).toMatchObject({ source: 'imported-unverified', filters: { technology: 'NR' }, filename: 'field.csv' });
+  expect(payload.samples).toBeUndefined();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(drive).toBeVisible();
+  const table = drive.locator('.dm-table').locator('..');
+  await expect(table).toHaveAttribute('role', 'region');
+  expect(await table.evaluate(element => element.scrollWidth)).toBeGreaterThan(await table.evaluate(element => element.clientWidth));
+  await table.focus();
+  await table.press('ArrowRight');
+  await expect.poll(() => table.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await clickWorkspaceButton(page, 'Activity');
+  await expect(drive).toHaveCount(0);
+  await clickWorkspaceButton(page, 'Virtual drive test');
+  await expect(drive.getByText('SYNTHETIC DEMO · NOT MEASURED')).toBeVisible();
+  expect(errors).toEqual([]);
+});

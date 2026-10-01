@@ -19,11 +19,10 @@
 .city-status.live{background:#eaf8f1;color:#136f52}
 .scene-stage{position:relative;background:#0d2233;overflow:hidden;height:clamp(300px,48vw,570px)}
 .city-stage{height:clamp(390px,54vw,650px)}
-.scene-stage .cesium-viewer,.scene-stage .cesium-widget,.scene-stage canvas{width:100%;height:100%}
+.scene-stage .maplibregl-map,.scene-stage canvas{width:100%;height:100%}
 .scene-loading,.scene-error{display:grid;place-items:center;height:100%;padding:24px;color:#d8f1ec;text-align:center;font-size:13px}
 .scene-error{color:#ffe0d8}
 .scene-empty{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(80%,340px);margin:0;padding:16px;border:1px solid #8fc7be55;border-radius:10px;background:#102e36dc;color:#e1f2ef;text-align:center;font-size:13px;line-height:1.5;pointer-events:none}
-.scene-stage .cesium-viewer-bottom{bottom:4px}
 .scene-legend{display:flex;flex-wrap:wrap;gap:15px;padding:12px 16px;border-top:1px solid #dce8ec;color:#4e6d7b;font-size:11px}
 .scene-legend span{display:inline-flex;align-items:center;gap:5px}
 .scene-key{display:inline-block;width:10px;height:10px;border-radius:2px;background:#7dbfb7}

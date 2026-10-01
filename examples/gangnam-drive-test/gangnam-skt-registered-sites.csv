@@ -1,0 +1,10 @@
+site_id,station_name,latitude,longitude,operator,permit_uid,address,registered_service,coordinate_source,source_url
+SITE-01,SKT5G논현역3AAUH,37.511022,127.021867,SKT,322018110056585,"서울특별시 강남구 강남대로 548, (논현동)",이동전화(5G-NR(3.5㎓))서비스 제공용(지상_기지국),KCA official registered location,https://spectrummap.kr/gis/mobile_service.do?menuNo=300480
+SITE-02,SKT5G강남대로2AAUH,37.505763,127.023395,SKT,322018110055586,"서울특별시 서초구 강남대로 487, (반포동)",이동전화(5G-NR(3.5㎓))서비스 제공용(지상_기지국),KCA official registered location,https://spectrummap.kr/gis/mobile_service.do?menuNo=300480
+SITE-03,SKT5G강남역AAUH,37.493566,127.030294,SKT,322018110056120,"서울특별시 강남구 강남대로 340, (역삼동)",이동전화(5G-NR(3.5㎓))서비스 제공용(지상_기지국),KCA official registered location,https://spectrummap.kr/gis/mobile_service.do?menuNo=300480
+SITE-04,SKT5G역삼대건빌딩AAUH,37.498874,127.029264,SKT,322019110082019,"서울특별시 강남구 테헤란로 111, (역삼동)",이동전화(5G-NR(3.5㎓))서비스 제공용(지상_기지국),KCA official registered location,https://spectrummap.kr/gis/mobile_service.do?menuNo=300480
+SITE-05,SKT5G역삼현익빌딩AAUH,37.500015,127.035469,SKT,322018110056128,"서울특별시 강남구 테헤란로 146, (역삼동)",이동전화(5G-NR(3.5㎓))서비스 제공용(지상_기지국),KCA official registered location,https://spectrummap.kr/gis/mobile_service.do?menuNo=300480
+SITE-06,SKT5G역삼건화AAUH,37.504012,127.04614,SKT,322020110028086,"서울특별시 강남구 테헤란로 321, (역삼동)",이동전화(5G-NR(3.5㎓))서비스 제공용(지상_기지국),KCA official registered location,https://spectrummap.kr/gis/mobile_service.do?menuNo=300480
+SITE-07,SKT5G삼릉공원2AAUE,37.508844,127.044201,SKT,322023110030420,"서울특별시 강남구 선릉로 563, (역삼동)",이동전화(5G-NR(3.5㎓))서비스 제공용(지상_기지국),KCA official registered location,https://spectrummap.kr/gis/mobile_service.do?menuNo=300480
+SITE-08,SKT5G논현3호주차장AAUE,37.516953,127.038577,SKT,322022110051374,"서울특별시 강남구 학동로47길 5, 논현주차타워  (논현동)",이동전화(5G-NR(3.5㎓))서비스 제공용(지상_기지국),KCA official registered location,https://spectrummap.kr/gis/mobile_service.do?menuNo=300480
+SITE-09,SKT5G논현1동사무소AAUE,37.512823,127.028269,SKT,322022110014953,"서울특별시 강남구 학동로 158, (논현동)",이동전화(5G-NR(3.5㎓))서비스 제공용(지상_기지국),KCA official registered location,https://spectrummap.kr/gis/mobile_service.do?menuNo=300480

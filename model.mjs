@@ -2,6 +2,7 @@ import { defaultUseCases, validateUseCases, drivePlan, abPlan, datasetPlan } fro
 import { defaultTasks, validateTasks, schedulePlan } from './tasks.mjs';
 import { defaultManagement, validateManagement, sanitizeManagement, managementSnapshot, upgradeManagement } from './management.mjs';
 import { validateScene, validateRayPaths, parseRayPaths } from './scene.mjs';
+import { validateDriveMeasurements } from './drive-measurements.mjs';
 
 const clone = value => structuredClone(value);
 const round = value => Math.round(value * 10) / 10;
@@ -90,6 +91,7 @@ export function defaultProject() {
     channel: { engine: 'Sionna-RT', execution: 'planned-not-executed', maxDepth: 4,
       reflections: true, diffraction: false, blockage: 12 },
     rayResults: null,
+    driveMeasurements: null,
     ue: { count: 1200, mobility: 'Urban pedestrian', seed: 42 },
     useCases: defaultUseCases(),
     tasks: defaultTasks(),
@@ -115,6 +117,7 @@ export function validateProject(p) {
   if (!['OpenStreetMap', 'GeoJSON'].includes(p?.map?.source)) errors.push('Unsupported map source');
   errors.push(...validateScene(p?.map?.scene));
   errors.push(...validateRayPaths(p?.rayResults));
+  errors.push(...validateDriveMeasurements(p?.driveMeasurements));
   if (p?.runtime?.host !== 'GH200' || p.runtime.gpu !== 'H200' || p.runtime.cpu !== 'Grace CPU') errors.push('Runtime must specify GH200 / H200 / Grace CPU');
   if (p?.architecture?.vCore?.kind !== 'physical' || p?.architecture?.vDU?.kind !== 'physical' || p?.architecture?.ru?.kind !== 'virtual' || p?.architecture?.ue?.kind !== 'virtual-cpu') errors.push('Physical / virtual RAN boundary invalid');
   if (p?.channel?.engine !== 'Sionna-RT' || !Number.isInteger(p.channel.maxDepth) || p.channel.maxDepth < 1 || p.channel.maxDepth > 12) errors.push('Invalid Sionna-RT configuration');
@@ -163,6 +166,7 @@ export function upgradeProject(p) {
   if (!p || typeof p !== 'object') return p;
   const next = clone(p);
   if (next.map && next.map.scene === undefined) next.map.scene = null;
+  if (next.driveMeasurements === undefined) next.driveMeasurements = null;
   next.rayResults = next.rayResults ? parseRayPaths(next.rayResults, {
     fileName: next.rayResults.fileName, importedAt: next.rayResults.importedAt,
   }) : null;

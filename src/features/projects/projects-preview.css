@@ -1,0 +1,31 @@
+.projects-preview { display: grid; gap: 1.25rem; }
+.projects-preview > header { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
+.projects-preview h1 { margin: .25rem 0; }
+.projects-preview .eyebrow, .project-kicker { color: var(--muted, #8ea3b8); font-size: .72rem; letter-spacing: .08em; }
+.projects-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
+.projects-summary > div, .project-card { border: 1px solid var(--line, #2a4051); border-radius: .75rem; padding: 1rem; background: var(--panel, #142331); }
+.projects-summary strong, .projects-summary span { display: block; }
+.projects-create-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; align-items: end; gap: .75rem; padding: 1rem; }
+.projects-create-form label, .project-rename label { display: grid; gap: .4rem; }
+.projects-create-form input, .project-rename input { min-width: 0; width: 100%; }
+.projects-list-heading { margin-top: .5rem; }
+.projects-list-heading h2, .projects-list-heading p { margin: .2rem 0; }
+.projects-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .9rem; }
+.project-card { display: grid; gap: .9rem; min-width: 0; }
+.project-card.archived { opacity: .82; }
+.project-card-top { display: flex; justify-content: space-between; align-items: start; gap: .75rem; }
+.project-card-top h3 { margin: .3rem 0; overflow-wrap: anywhere; }
+.project-card-top p { margin: 0; color: var(--muted, #8ea3b8); }
+.project-status, .project-current-action, .project-action-hint { align-self: center; white-space: nowrap; color: var(--muted, #8ea3b8); font-size: .78rem; }
+.project-facts, .project-card-actions { display: flex; flex-wrap: wrap; gap: .65rem; align-items: center; }
+.project-facts { color: var(--muted, #8ea3b8); font-size: .8rem; }
+.project-card-actions details { flex-basis: 100%; }
+.project-card-actions summary { cursor: pointer; }
+.project-rename form { display: flex; flex-wrap: wrap; align-items: end; gap: .65rem; padding-top: .65rem; }
+.project-rename label { flex: 1 1 14rem; }
+.project-archive-note { margin: 0; color: var(--muted, #8ea3b8); }
+@media (max-width: 720px) {
+  .projects-list { grid-template-columns: 1fr; }
+  .projects-create-form { grid-template-columns: 1fr; }
+  .projects-preview > header { flex-direction: column; }
+}

@@ -131,3 +131,13 @@ export function analyzeDmTrace(samples,{technology='ALL',metric='rsrp'}={}) {
     handoverCount:events.filter(s=>/^(handover|ho)(\b|:|-)/i.test(s.event)).length,events,
     thresholds:{poor:spec.poor,good:spec.good,unit:spec.unit}};
 }
+
+export function buildDmAnalysisReport(trace,{technology='ALL',metric='rsrp',filename=''}={}) {
+  const stats=analyzeDmTrace(trace.samples,{technology,metric});
+  const {filtered,events,...summary}=stats;
+  return {schemaVersion:1,kind:'4G-5G-DM-ANALYSIS',source:trace.source,
+    provenance:trace.source==='synthetic-demo'?'illustrative-not-measured':'imported-unverified',
+    filename:filename||null,coordinateMode:trace.coordinateMode,filters:{technology,metric},
+    summary,events:events.map(s=>({sampleIndex:s.index,timeS:s.timeS,technology:s.technology,servingCell:s.servingCell,event:s.event})),
+    note:'UI-only analysis. No Sionna-RT execution, verified 4G/5G measurement, or network acceptance verdict is implied.'};
+}

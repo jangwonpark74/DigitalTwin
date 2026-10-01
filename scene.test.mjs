@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseGeoJsonScene, validateScene, parseRayPaths, validateRayPaths, sceneFit, geoToLocalMeters } from './scene.mjs';
-import { CITY_PRESETS, sceneView, createCesiumViewer, syncCesiumScene, syncDemoCity, setCesiumCamera } from './scene-ui.mjs';
+import { sceneView } from './scene-ui.mjs';
 import { defaultProject, validateProject, createManifest, upgradeProject } from './model.mjs';
 
 const feature = {
@@ -58,7 +58,7 @@ test('ray results validate path points, retain unverified provenance, and render
   assert.deepEqual(validateProject(project), []);
   const html = sceneView(project, { panel: (_title, caption, body) => caption + body, badge: value => value }, { rays, selectedRayId: 'path-1' });
   assert.match(html, /1 footprints loaded/);
-  assert.match(html, /data-cesium-scene/);
+  assert.match(html, /data-open-map-scene/);
   assert.match(html, /path-1/);
   assert.match(html, /uncalibrated geometry and material assumptions/);
   const manifest = JSON.parse(createManifest(project));
@@ -95,71 +95,4 @@ test('scene labels are escaped in HTML markup', () => {
   const html = sceneView(project, { panel: (_title, caption, body) => caption + body, badge: value => value });
   assert.doesNotMatch(html, /<img/);
   assert.match(html, /&lt;img/);
-});
-
-test('Cesium entities keep WGS84 coordinate order and real heights', () => {
-  const project = defaultProject();
-  project.map.scene = parseGeoJsonScene(sceneFile);
-  project.sites[0].radioLocation = { latitude: 37.5665, longitude: 126.9779, source: 'manual' };
-  const rays = parseRayPaths(rayFile);
-  const entities = [];
-  const viewer = {
-    entities: { removeAll: () => { entities.length = 0; }, add: entity => entities.push(entity) },
-    scene: { requestRender() {} },
-    camera: { lookAt(target, hpr) { this.target = target; this.hpr = hpr; }, lookAtTransform() {} },
-  };
-  const Cesium = {
-    Cartesian3: { fromDegrees: (...values) => values }, Cartesian2: class { constructor(x, y) { this.x = x; this.y = y; } },
-    Color: { fromCssColorString: value => ({ value, withAlpha: alpha => ({ value, alpha }) }), WHITE: 'white' },
-    ArcType: { NONE: 0 }, Math: { toRadians: degrees => degrees * Math.PI / 180 },
-    HeadingPitchRange: class { constructor(heading, pitch, range) { Object.assign(this, { heading, pitch, range }); } },
-    Matrix4: { IDENTITY: {} },
-  };
-  syncCesiumScene(viewer, Cesium, project, { rays, selectedRayId: 'path-1' });
-  assert.equal(entities.length, 3);
-  assert.deepEqual(entities[0].polygon.hierarchy[0], [126.9778, 37.5664]);
-  assert.equal(entities[0].polygon.extrudedHeight, 24);
-  assert.deepEqual(entities[1].position, [126.9779, 37.5665, project.sites[0].heightM]);
-  assert.deepEqual(entities[2].polyline.positions[0], [126.9778, 37.5664, 24]);
-  setCesiumCamera(viewer, Cesium, project.map, { yaw: 35, pitch: 48, zoom: 1 });
-  assert.deepEqual(viewer.camera.target, [project.map.longitude, project.map.latitude]);
-  assert.ok(viewer.camera.hpr.range > project.map.radiusMeters);
-});
-
-test('city explorer renders an honest demo and generated buildings stay out of the project scene', () => {
-  const project = defaultProject();
-  const html = sceneView(project, { panel: (_title, caption, body) => caption + body, badge: value => value }, { cityPreset: 'seoul' });
-  assert.match(html, /Explore a city/);
-  assert.match(html, /generated examples, not OpenStreetMap data/);
-  assert.match(html, /data-city-connect/);
-  const entities = [];
-  const viewer = { entities: { removeAll: () => { entities.length = 0; }, add: entity => entities.push(entity) }, scene: { requestRender() {} } };
-  const Cesium = { Cartesian3: { fromDegrees: (...coordinates) => coordinates }, Color: { fromCssColorString: value => value } };
-  const count = syncDemoCity(viewer, Cesium, 'seoul');
-  assert.ok(count > 150);
-  assert.equal(entities.length, count);
-  assert.match(entities[0].description, /not OSM data or an RF simulation input/);
-  assert.ok(Math.abs(entities[0].polygon.hierarchy[0][0] - CITY_PRESETS.seoul.longitude) < .02);
-  assert.throws(() => syncDemoCity(viewer, Cesium, 'unknown'), /Unknown city preset/);
-  assert.equal(project.map.scene, null);
-});
-
-test('online Cesium viewer requests world terrain and imagery only for live city mode', () => {
-  const terrain = {}, options = [];
-  const Cesium = {
-    Viewer: class { constructor(_container, setup) {
-      options.push(setup);
-      this.scene = { backgroundColor: null, globe: {}, skyBox: { show: true }, skyAtmosphere: { show: true }, sun: { show: true }, moon: { show: true } };
-    } },
-    Terrain: { fromWorldTerrain: () => terrain },
-    EllipsoidTerrainProvider: class {},
-    Color: { fromCssColorString: value => value },
-  };
-  const container = { replaceChildren() {} };
-  createCesiumViewer(container, Cesium);
-  createCesiumViewer(container, Cesium, { online: true });
-  assert.equal(options[0].baseLayer, false);
-  assert.ok(options[0].terrainProvider instanceof Cesium.EllipsoidTerrainProvider);
-  assert.equal(options[1].terrain, terrain);
-  assert.equal(options[1].baseLayer, undefined);
 });

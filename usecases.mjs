@@ -86,3 +86,11 @@ export function datasetPlan(project) {
     provenanceFields:['project_manifest_id','scene_hash','material_hash','antenna_hash','RAN_package_id','sim_mode','seed','run_id'],
     caveat:'Schema and budget only. No generated samples or ground-truth labels exist until backend simulation and validation.' };
 }
+
+export function buildUseCasePlanSpec(project, type) {
+  const planner = { drive: drivePlan, ab: abPlan, data: datasetPlan };
+  if (!Object.hasOwn(planner, type)) throw new Error(`Unknown use-case plan: ${type}`);
+  return { schemaVersion:1, mode:'PLANNING_ONLY', useCase:type, city:project.map.city,
+    cluster:project.map.cluster, config:project.useCases[type], plan:planner[type](project),
+    note:'Not executed. No RF measurements, A/B verdict or training samples were generated.' };
+}
