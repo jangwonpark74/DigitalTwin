@@ -9,8 +9,10 @@ import math
 import sys
 import tempfile
 import hashlib
+import platform
 from importlib.metadata import version
 from pathlib import Path
+from study_run import PATH_SOLVER_PROFILE
 
 METERS_PER_DEGREE = 111_320.0
 
@@ -177,9 +179,9 @@ def run_sionna(job):
         scene.add(Receiver(name="receiver", position=[*local_xy(scope, rx["latitude"], rx["longitude"]), rx["heightM"]]))
         solver = PathSolver(deterministic=True)
         paths = solver(scene, max_depth=job["maxDepth"], samples_per_src=job["samplesPerSrc"],
-                       max_num_paths_per_src=1000, synthetic_array=True, los=True,
-                       specular_reflection=job["reflections"], diffuse_reflection=False,
-                       refraction=False, diffraction=job["diffraction"], seed=42)
+                       max_num_paths_per_src=PATH_SOLVER_PROFILE["maxPathsPerSource"], synthetic_array=PATH_SOLVER_PROFILE["syntheticArray"], los=PATH_SOLVER_PROFILE["los"],
+                       specular_reflection=job["reflections"], diffuse_reflection=PATH_SOLVER_PROFILE["diffuseReflection"],
+                       refraction=PATH_SOLVER_PROFILE["refraction"], diffraction=job["diffraction"], seed=PATH_SOLVER_PROFILE["seed"])
         def link_values(tensor):
             values = np.asarray(tensor.numpy())
             return values[(0,) * (values.ndim - 1) + (slice(None),)]
@@ -210,7 +212,9 @@ def run_sionna(job):
         results.sort(key=lambda item: item["pathLossDb"])
         return {"schemaVersion": 1, "kind": "ray-paths", "coordinateSystem": "EPSG:4326",
                 "solver": f"Sionna-RT {version('sionna-rt')}",
-                "provenance": "sionna-rt-local", "paths": results[:200], "totalPaths": len(results),
+                "provenance": "sionna-rt-local", "paths": results[:PATH_SOLVER_PROFILE["retainedPaths"]], "totalPaths": len(results),
+                "executionEnvironment": {"engine": "sionna-rt", "engineVersion": version('sionna-rt'),
+                                         "pythonVersion": platform.python_version(), "platform": platform.system(), "machine": platform.machine()},
                 "assumptions": "Concrete buildings/ground, isotropic single-element antennas, no refraction; uncalibrated geometry",
                 "sceneSha256": hashlib.sha256(json.dumps(job["scene"], sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
                 "job": {"frequencyGhz": job["frequencyGhz"], "samplesPerSrc": job["samplesPerSrc"],

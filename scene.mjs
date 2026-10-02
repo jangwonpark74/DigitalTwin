@@ -1,3 +1,4 @@
+import { parseRunCaptureHeader } from './run-capture.mjs';
 const MAX_FOOTPRINTS = 500;
 const MAX_VERTICES = 64;
 const MAX_PATHS = 200;
@@ -193,6 +194,7 @@ export function parseRayPaths(input, { fileName = 'ray-paths.json', importedAt =
     sceneSha256: data.sceneSha256 ?? null,
     assumptions: data.assumptions == null ? null : cleanLabel(data.assumptions, '', 200),
     job: normalizedJobMetadata(data.job),
+    ...(data.runCapture === undefined || data.runCapture === null ? {} : { runCapture: parseRunCaptureHeader(data.runCapture) }),
   };
 }
 

@@ -219,6 +219,10 @@ All example files are in [examples/gangnam-drive-test](../examples/gangnam-drive
 
 To display both sites and samples, open **Project artifacts → Import planning manifest**, select `gangnam-skt-drive-planning-manifest.json`, then open **Ray tracing lab** and choose **Fit drive route**. The manifest creates a new project and preserves the existing project.
 
+The lab renders the drive trace and KPI samples at **1.5 m above flat map ground**. This display height is separate from the assumed 30 m station antenna height. Keep **Cell sites** enabled to display the registered stations; **Fit cell sites** brings all positioned sites into view. The positioned-site count identifies inventory entries without coordinates. A Gangnam CSV imported into a city-center project will not relocate that project's sites; import the companion manifest to view the matching site inventory.
+
+**City map** uses the same geographic renderer in a top-down 2D view. Within the current workspace session, it shares the map center, zoom, bearing, drive-test KPI, technology filter, selected sample and layer visibility with **Ray tracing lab**. These view preferences are kept separately for each project and reset when its map scope changes; panning and changing KPI selections do not alter station coordinates or RF configuration. **Site & cell planner** also uses the project map and offers searchable site inventory, 2D/3D views and a sector-orientation inspector.
+
 For CSV-only use, choose **Ray tracing lab → Import drive test CSV**. CSV import updates drive samples; it does not move radio sites. Additional CSV columns such as `road_name`, `operator`, `site_permit_uid` and `data_kind` provide file-level context but are not retained by the lab's current sample parser. The filename and `SYNTHETIC_` events remain visible after import.
 
 The files were checked with the application's `parseDmCsv`, `buildDriveMeasurements`, `upgradeProject`, `sanitizeProject` and `validateProject` paths. All 676 samples and all nine registered positions survived the manifest import transformation. Network, hardware and RF execution readiness remain unverified.

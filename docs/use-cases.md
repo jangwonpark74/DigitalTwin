@@ -1,13 +1,14 @@
 # 5G RAN twin use cases — planning contracts
 
-These are design-level planning flows. The browser mockup does **not** perform drive measurements, deploy software or generate training rows.
+These are design-level planning flows. The browser does **not** acquire physical drive measurements, deploy RAN software or generate training rows. It can analyze imported GPS CSV evidence and execute supported local single-link Sionna-RT path jobs. The [enhancement plan](ran-digital-twin-enhancement-plan.md) and [implementation status](ran-enhancement-implementation.md) describe the current workflow.
 
 ## UC-01 — Virtual drive test
 
 - **Actors:** RF planner, experiment operator.
 - **Trigger:** a virtual route and UE behavior need specification for an existing cluster.
 - **Inputs:** route waypoints on the schematic canvas, sample count, planned speed, chosen site/cell context and reproducibility seed.
-- **Prototype flow:** select the use case → edit route/parameters → scrub or play a moving marker → inspect the route plan → export JSON. The preview uses canvas percentages, not GPS coordinates; radio measurements remain absent.
+- **Analysis flow:** open Drive → import a GPS CSV → declare origin/date → validate and review quality/extent → save → inspect the geographic trace, trends, events and sample table. City Map and Propagation reuse the same saved dataset, KPI/RAT filter and original sample selection. Imported data remain unverified; synthetic markers retain synthetic origin. The raw UTF-8 CSV, SHA-256 and source metadata are exported as project artifacts.
+- **Route planning flow:** choose Route & simulation plan → edit route/parameters → inspect the schematic plan → export JSON. Route planning remains separate from measurement evidence and does not execute virtual UEs. Legacy percentage-coordinate CSVs stay transient in the Drive page.
 - **Exceptions:** reject invalid sample count or malformed route and preserve previous state.
 - **Backend requirements:** georeferenced scene, calibrated RF materials, Sionna-RT channel jobs, virtual RU/UE runtime, RSRP/SINR throughput/latency capture, run provenance and measured-vs-modeled comparison.
 - **Acceptance:** deterministic route with bounded inputs and a visible *not executed* state; exported plan contains no fabricated measurement.

@@ -1,7 +1,8 @@
 type Cell = { id: string };
 type Site = { id: string; cells: Cell[] };
 type Project = { sites: Site[] };
-type Snapshot = { projectId: string; selectedSiteId: string | null; selectedCellId: string | null };
+export type InspectorTab = 'summary' | 'position' | 'rf' | 'antenna' | 'topology';
+type Snapshot = { projectId: string; selectedSiteId: string | null; selectedCellId: string | null; inspectorTab: InspectorTab };
 
 /** Transient site/cell selection state, isolated from project persistence. */
 export class SitePlannerSession {
@@ -17,7 +18,7 @@ export class SitePlannerSession {
 
   private initial(projectId: string): Snapshot {
     const site = this.project.sites[0];
-    return { projectId, selectedSiteId: site?.id ?? null, selectedCellId: site?.cells[0]?.id ?? null };
+    return { projectId, selectedSiteId: site?.id ?? null, selectedCellId: site?.cells[0]?.id ?? null, inspectorTab: 'summary' };
   }
 
   getSnapshot = () => this.snapshot;
@@ -38,7 +39,7 @@ export class SitePlannerSession {
     const site = this.project.sites.find(candidate => candidate.id === siteId);
     if (!site) return false;
     const cellId = site.cells[0]?.id ?? null;
-    if (this.state.selectedSiteId === siteId && this.state.selectedCellId === cellId) return true;
+    if (this.state.selectedSiteId === siteId) return true;
     this.state.selectedSiteId = siteId;
     this.state.selectedCellId = cellId;
     this.publish();
@@ -53,6 +54,11 @@ export class SitePlannerSession {
     this.state.selectedCellId = cellId;
     this.publish();
     return true;
+  }
+
+  selectInspectorTab(tab: InspectorTab) {
+    if (this.disposed || !['summary', 'position', 'rf', 'antenna', 'topology'].includes(tab) || this.state.inspectorTab === tab) return;
+    this.state.inspectorTab = tab; this.publish();
   }
 
   setProject(projectId: string, project: Project) {

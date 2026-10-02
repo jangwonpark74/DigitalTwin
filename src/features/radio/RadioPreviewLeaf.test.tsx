@@ -52,10 +52,11 @@ describe('RadioPreviewLeaf', () => {
   it('renders radio planning details and switches the selected site reactively', async () => {
     const { session } = await setup();
     const planner = screen.getByRole('region', { name: 'Radio planner preview route' });
-    expect(within(planner).getByRole('heading', { name: 'Radio planner' })).toBeTruthy();
+    expect(within(planner).getByRole('heading', { name: 'Sites and Cells' })).toBeTruthy();
     expect(within(planner).getByText('Radio technology')).toBeTruthy();
-    expect(within(planner).getByText('Coordinates not set')).toBeTruthy();
     expect(planner.textContent).toMatch(/compatibility unverified/i);
+    fireEvent.click(within(planner).getByRole('tab', { name: 'Position' }));
+    expect(within(planner).getByText(/Coordinates not set/)).toBeTruthy();
 
     const secondSite = within(planner).getByRole('button', { name: /River Bridge/ });
     secondSite.focus();
@@ -64,6 +65,7 @@ describe('RadioPreviewLeaf', () => {
     expect(within(planner).getByRole('button', { name: /River Bridge/ })).toBe(secondSite);
     expect(document.activeElement).toBe(secondSite);
     expect(secondSite.getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(within(planner).getByRole('tab', { name: 'Antenna' }));
     expect(within(planner).getByLabelText('Array elements')).toBeTruthy();
   });
 
@@ -71,6 +73,7 @@ describe('RadioPreviewLeaf', () => {
     const { api, controller, record, session, onError, onNavigate, view } = await setup();
     const planner = screen.getByRole('region', { name: 'Radio planner preview route' });
 
+    fireEvent.click(within(planner).getByRole('tab', { name: 'Antenna' }));
     fireEvent.change(within(planner).getByRole('combobox', { name: 'RF front end' }), { target: { value: 'MMU' } });
     await waitFor(() => expect(projectsFor(controller)[0].project.sites[0].frontEnd).toBe('MMU'));
     view.rerender(<RadioPreviewLeaf controller={controller} record={controller.getSnapshot().workspace!.projects[0]}
@@ -99,6 +102,7 @@ describe('RadioPreviewLeaf', () => {
   it('starts map placement for the selected site and keeps map navigation explicit', async () => {
     const { session, onNavigate } = await setup();
     const planner = screen.getByRole('region', { name: 'Radio planner preview route' });
+    fireEvent.click(within(planner).getByRole('tab', { name: 'Position' }));
     fireEvent.click(within(planner).getByRole('button', { name: /Place on map/ }));
     expect(session.getSnapshot().placementSiteId).toBe('SITE-01');
     expect(onNavigate).toHaveBeenCalledWith('map');
@@ -111,6 +115,7 @@ describe('RadioPreviewLeaf', () => {
     const { controller, record, session, onError, onNavigate, view } = await setup();
     const siteCard = screen.getByRole('button', { name: /Civic Square/ });
     const planner = screen.getByRole('region', { name: 'Radio planner preview route' });
+    fireEvent.click(within(planner).getByRole('tab', { name: 'Antenna' }));
     fireEvent.change(within(planner).getByRole('combobox', { name: 'RF front end' }), { target: { value: 'MMU' } });
     await waitFor(() => expect(projectsFor(controller)[0].project.sites[0].frontEnd).toBe('MMU'));
 

@@ -56,7 +56,10 @@
 @media (max-width: 600px) { .ray-tracing-preview .scene-job-grid { grid-template-columns: 1fr; } }
 
 .ray-tracing-preview .open-rf-host { height: clamp(680px, 78vh, 1050px); min-height: 680px; border-radius: 10px; }
-.rt-layer-list { display: flex; flex-wrap: wrap; gap: 18px; margin: 0 0 13px; }
+.rt-layer-list { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin: 0 0 13px; }
+.rt-layer-list > span { color: #718578; font-size: 11px; }
+.rt-layer-list > button { border: 1px solid #cddbd2; border-radius: 5px; padding: 5px 9px; background: #fff; color: #426b58; font-size: 11px; cursor: pointer; }
+.rt-layer-list > button:disabled { opacity: .5; cursor: default; }
 .rt-layer-list label { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #718578; }
 .rt-layer-list input, .rt-drive-toggle input { accent-color: #15956f; }
 .rt-placement .rt-trace-button { background: #285a46; color: white; border-color: #285a46; }
@@ -81,3 +84,9 @@
 @media (max-width: 900px) { .rt-drive-inspector { flex-wrap: wrap; gap: 15px; }.rt-drive-scrubber { flex-basis: 100%; }.rt-drive-heading { align-items: start; flex-wrap: wrap; } }
 @media (max-width: 600px) { .ray-tracing-preview .open-rf-host { height: 68vh; min-height: 520px; }.rt-drive-controls { padding: 12px; }.rt-kpi-toolbar { gap: 12px; }.rt-kpi-toolbar .rt-segment { width: 100%; }.rt-kpi-toolbar .rt-segment button { flex: 1; }.rt-kpi-toolbar .rt-segment span { display: block; margin: 3px 0 0; }.rt-kpi-legend { gap: 10px; }.rt-drive-inspector { align-items: start; }.rt-drive-sample-details { flex-basis: 60%; }.rt-placement { flex-wrap: wrap; } }
 @media (max-width: 600px) { .rt-kpi-toolbar .rt-segment { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }.rt-kpi-toolbar .rt-segment button { grid-column: span 2; }.rt-kpi-toolbar .rt-segment button:nth-child(n+4) { grid-column: span 3; } }
+.rt-input-version { display: flex; align-items: center; flex-wrap: wrap; gap: 1rem; padding: 1rem; margin: 1rem 0; background: #edf2e8; border: 1px solid #d5dfcf; border-radius: 8px; }
+.rt-input-version label { display: flex; flex-direction: column; gap: .4rem; min-width: 240px; font-size: .82rem; }
+.rt-input-version select { width: 100%; max-width: 430px; padding: .6rem; background: #fff; border: 1px solid #c8d3c8; border-radius: 6px; }
+.rt-input-version p { flex: 1; min-width: 200px; margin: 0; color: #647560; font-size: .83rem; line-height: 1.6; }
+.rt-input-version .rt-input-problem { flex-basis: 100%; color: #8d532b; }
+@media (max-width: 600px) { .rt-input-version { align-items: stretch; flex-direction: column; } .rt-input-version label { min-width: 0; } .rt-input-version select { max-width: 100%; } }

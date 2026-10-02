@@ -1,0 +1,90 @@
+import { expect, test } from '@playwright/test';
+import { spawnPython, runToolSync } from '../../scripts/runtime.mjs';
+import { createWorkspaceState } from '../../workspaces.mjs';
+import { workspaceArtifactIndex } from '../../artifacts.mjs';
+import { upgradeProject } from '../../model.mjs';
+import { createHash } from 'node:crypto';
+import { createServer } from 'node:net';
+import { once } from 'node:events';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { clickWorkspaceButton } from './navigation';
+
+test('saved study and candidate revisions survive SQLite reload while baseline rewrites are rejected', async ({ page }) => {
+  test.setTimeout(90_000);
+  const temporary = await mkdtemp(join(process.env.ATLAS_TEST_TMPDIR ?? tmpdir(), 'atlas-study-'));
+  const socket = createServer(); socket.listen(0, '127.0.0.1'); await once(socket, 'listening');
+  const address = socket.address(); if (!address || typeof address === 'string') throw new Error('No port');
+  const port = address.port; await new Promise<void>(resolve => socket.close(() => resolve()));
+  runToolSync('vite', ['build'], { stdio: 'ignore' });
+  const server = spawnPython(['serve.py', '--host', '127.0.0.1', '--port', String(port)], {
+    env: { ...process.env, ATLAS_DB_PATH: join(temporary, 'study.sqlite3') }, stdio: 'ignore',
+  });
+  try {
+    const origin = `http://127.0.0.1:${port}`;
+    await expect.poll(async () => { try { return (await page.request.get(`${origin}/api/workspace`)).status(); } catch { return 0; } }).toBe(200);
+    const manifest = JSON.parse(await readFile('examples/gangnam-drive-test/gangnam-skt-drive-planning-manifest.json', 'utf8'));
+    const project = upgradeProject({ ...manifest, name: manifest.project, useCases: manifest.useCaseConfig });
+    const initial = createWorkspaceState(project);
+    const seeded = await page.request.put(`${origin}/api/workspace`, { data: { revision: 0, workspace: initial, artifacts: workspaceArtifactIndex(initial) } });
+    expect(seeded.status()).toBe(200);
+    const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`${origin}/?workspace=study-setup`);
+    await page.getByLabel('Study objective').fill('Reduce weak street segments along Teheran-ro');
+    await page.getByLabel('Operator declaration').fill('SKT · registered facility sources');
+    await page.getByLabel('Carrier frequency (MHz)').fill('3500');
+    await page.getByRole('button', { name: 'Save study definition' }).click();
+    await expect(page.getByRole('status', { name: '' }).filter({ hasText: 'Definition v1 saved' })).toBeVisible();
+    await clickWorkspaceButton(page, 'Baselines & candidates');
+    await page.getByLabel('Baseline name').fill('Gangnam baseline');
+    await page.getByRole('button', { name: 'Capture baseline' }).click();
+    await expect(page.getByText('Baseline captured', { exact: true })).toBeVisible();
+    const captured = await (await page.request.get(`${origin}/api/workspace`)).json();
+    const baseline = captured.workspace.projects[0].project.study.baselines[0];
+    expect(baseline.sha256).toBe(createHash('sha256').update(baseline.inputJson).digest('hex'));
+    await page.getByLabel('Candidate name').fill('Street tilt candidate');
+    await page.getByLabel('Linked issue / hypothesis').fill('Review weak samples near Nonhyeon-dong');
+    await page.getByRole('button', { name: 'Create candidate' }).click();
+    await expect(page.getByText('Candidate v1 created', { exact: true })).toBeVisible();
+    await page.getByLabel('RF parameter').selectOption('downtiltDeg');
+    await page.getByLabel('Candidate value').fill('8');
+    await page.getByRole('button', { name: 'Save candidate revision' }).click();
+    await expect(page.getByText('Candidate v2 saved', { exact: true })).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Exact candidate changes' })).toContainText('Downtilt');
+    const context = page.getByRole('region', { name: 'Shared study context' });
+    await expect(context).toContainText('Street tilt candidate v2');
+    await clickWorkspaceButton(page, 'Virtual drive test');
+    await expect(context).toContainText('Street tilt candidate v2');
+    await clickWorkspaceButton(page, 'Baselines & candidates');
+    await page.reload();
+    await expect(page.getByRole('table', { name: 'Exact candidate changes' })).toContainText('8 °');
+    await page.getByRole('button', { name: /Revert Downtilt/ }).click();
+    await expect(page.getByText('Candidate v3 saved', { exact: true })).toBeVisible();
+    await expect(page.getByText('No RF changes in this revision.')).toBeVisible();
+    const persisted = await (await page.request.get(`${origin}/api/workspace`)).json();
+    expect(persisted.workspace.projects[0].project.study.baselines[0]).toEqual(baseline);
+    const candidate = persisted.workspace.projects[0].project.study.candidates[0];
+    expect(candidate.versions).toHaveLength(3);
+    await page.getByRole('combobox', { name: 'Candidate revision', exact: true }).selectOption(`${candidate.id}:2`);
+    await expect(page.getByRole('button', { name: 'Save candidate revision' })).toBeDisabled();
+    await expect(page.getByText('Historical revision is read-only. Select the latest revision to continue editing.')).toBeVisible();
+    const latest = await (await page.request.get(`${origin}/api/workspace`)).json();
+    const tampered = structuredClone(latest.workspace);
+    tampered.projects[0].project.study.baselines[0].name = 'Rewritten baseline';
+    const rejected = await page.request.put(`${origin}/api/workspace`, { data: { revision: latest.revision, workspace: tampered, artifacts: workspaceArtifactIndex(tampered) } });
+    expect(rejected.status()).toBe(400); expect((await rejected.json()).error).toContain('immutable');
+    const directory = 'docs/design-review/ran-study'; await mkdir(directory, { recursive: true });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: `${directory}/candidate-desktop.png` });
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+    await page.getByRole('region', { name: 'Candidate revision editor' }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${directory}/candidate-mobile.png` });
+    expect(errors).toEqual([]);
+  } finally {
+    if (server.exitCode === null && server.signalCode === null) { const stopped = once(server, 'exit'); server.kill('SIGTERM'); await stopped; }
+    await rm(temporary, { recursive: true, force: true });
+  }
+});

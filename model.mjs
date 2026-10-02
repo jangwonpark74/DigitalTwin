@@ -3,6 +3,9 @@ import { defaultTasks, validateTasks, schedulePlan } from './tasks.mjs';
 import { defaultManagement, validateManagement, sanitizeManagement, managementSnapshot, upgradeManagement } from './management.mjs';
 import { validateScene, validateRayPaths, parseRayPaths } from './scene.mjs';
 import { validateDriveMeasurements } from './drive-measurements.mjs';
+import { validateStudy } from './study.mjs';
+import { validateMeasurementLibrary } from './measurement-library.mjs';
+import { validateInventoryIdentities } from './network-cell-identity.mjs';
 
 const clone = value => structuredClone(value);
 const round = value => Math.round(value * 10) / 10;
@@ -118,6 +121,7 @@ export function validateProject(p) {
   errors.push(...validateScene(p?.map?.scene));
   errors.push(...validateRayPaths(p?.rayResults));
   errors.push(...validateDriveMeasurements(p?.driveMeasurements));
+  errors.push(...validateMeasurementLibrary(p));
   if (p?.runtime?.host !== 'GH200' || p.runtime.gpu !== 'H200' || p.runtime.cpu !== 'Grace CPU') errors.push('Runtime must specify GH200 / H200 / Grace CPU');
   if (p?.architecture?.vCore?.kind !== 'physical' || p?.architecture?.vDU?.kind !== 'physical' || p?.architecture?.ru?.kind !== 'virtual' || p?.architecture?.ue?.kind !== 'virtual-cpu') errors.push('Physical / virtual RAN boundary invalid');
   if (p?.channel?.engine !== 'Sionna-RT' || !Number.isInteger(p.channel.maxDepth) || p.channel.maxDepth < 1 || p.channel.maxDepth > 12) errors.push('Invalid Sionna-RT configuration');
@@ -156,9 +160,11 @@ export function validateProject(p) {
       if (!Number.isFinite(cell.bandwidthMhz) || cell.bandwidthMhz < 5 || cell.bandwidthMhz > 400) errors.push(`Invalid bandwidth for ${cell.id}`);
     }
   }
+  errors.push(...validateInventoryIdentities(p?.sites));
   errors.push(...validateUseCases(p?.useCases));
   errors.push(...validateTasks(p?.tasks));
   errors.push(...validateManagement(p?.management));
+  errors.push(...validateStudy(p?.study, inputs => validateProject({ ...p, ...inputs, study: undefined, measurementLibrary: undefined })));
   return errors;
 }
 
@@ -255,6 +261,9 @@ export function createManifest(p) {
   return JSON.stringify({ schemaVersion: 1, exportedAt: new Date().toISOString(), project: safe.name,
     map: safe.map, runtime: safe.runtime, integration: safe.integration, architecture: safe.architecture,
     channel: safe.channel, ue: safe.ue, sites: safe.sites, rayResults: safe.rayResults,
+    ...(safe.study ? { study: safe.study } : {}),
+    ...(safe.driveMeasurements ? { driveMeasurements: safe.driveMeasurements } : {}),
+    ...(safe.measurementLibrary ? { measurementLibrary: safe.measurementLibrary } : {}),
     preview: simulatePreview(safe), readiness: readiness(safe),
     useCaseConfig: safe.useCases,
     useCases: { drive: drivePlan(safe), ab: abPlan(safe), data: datasetPlan(safe) },

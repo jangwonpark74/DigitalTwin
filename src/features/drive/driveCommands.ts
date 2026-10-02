@@ -1,10 +1,11 @@
 import { buildUseCasePlanSpec } from '../../../usecases.mjs';
-import { appendWorkspaceLog, updateWorkspaceProject } from '../../../workspaces.mjs';
+import { appendWorkspaceLog } from '../../../workspaces.mjs';
 import { buildDriveMeasurements } from '../../../drive-measurements.mjs';
 import type { AppController } from '../../app/AppController';
 import type { WorkspaceSnapshot } from '../../api/schemas';
 import { applyLegacyField } from '../../legacy/legacyEventAdapter';
 import type { DriveSession } from './DriveSession';
+import { commitDriveImport } from './driveImportCommands';
 
 function downloadJson(filename: string, payload: string) {
   const url = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
@@ -45,9 +46,9 @@ export function createDriveCommands(controller: AppController, session: DriveSes
         || state.trace.samples.length !== rows) throw new Error('Imported drive trace is no longer current.');
       const gps = state.trace.samples.every((sample: { latitude?: number; longitude?: number }) => 'latitude' in sample && 'longitude' in sample);
       const measurements = gps ? buildDriveMeasurements(state.trace, filename) : null;
-      await controller.dispatch(workspace => appendWorkspaceLog(measurements ? updateWorkspaceProject(workspace, record.id,
-        (project: { driveMeasurements: unknown }) => { project.driveMeasurements = measurements; }) : workspace,
-      record.id, { title: 'DM trace imported', detail: `${filename} · ${rows} unverified rows` }) as WorkspaceSnapshot);
+      if (measurements) await commitDriveImport(controller, record.id, measurements);
+      else await controller.dispatch(workspace => appendWorkspaceLog(workspace,
+        record.id, { title: 'DM trace imported', detail: `${filename} · ${rows} unverified rows` }) as WorkspaceSnapshot);
       options.onSuccess?.();
     },
     async onAnalysisExport(report: ReturnType<DriveSession['buildAnalysisReport']>) {

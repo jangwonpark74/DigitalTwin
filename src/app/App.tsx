@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import ActivityPreview from '../legacy/ActivityPreview';
+import { routeFromSearch } from './routeRegistry';
 
 export default function App() {
   const previewRoute = document.body.dataset.previewRoute
@@ -10,5 +11,5 @@ export default function App() {
     <p>Open the activity route to inspect the migrated React workspace.</p>
     <button type="button" onClick={() => setPreviewStarted(true)}>Preview activity route</button>
   </main>;
-  return <ActivityPreview initialRoute={previewRoute === 'activity' ? 'activity' : 'overview'} />;
+  return <ActivityPreview syncUrl initialRoute={routeFromSearch(window.location.search) ?? (previewRoute === 'activity' ? 'activity' : 'overview')} />;
 }

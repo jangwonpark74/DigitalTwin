@@ -27,10 +27,10 @@ test('product workspaces keep readable headings, usable layouts and planning con
   const routes: [string | null, string, string][] = [
     [null, 'Mission control', 'overview'], [null, 'Projects', 'projects'], [null, 'RAN topology', 'topology'],
     [null, 'Project artifacts', 'artifacts'], [null, 'Virtual UE fleet', 'ues'], [null, 'City map', 'map'],
-    [null, 'Site & cell planner', 'planner'], [null, 'Radio planner', 'radio'], [null, 'Ray tracing lab', 'ray'],
-    ['USE CASES', 'Virtual drive test', 'drive'], ['USE CASES', 'Package A/B test', 'ab'], ['USE CASES', 'AI-RAN data generation', 'data'],
-    ['SYSTEM', 'Hardware inventory', 'hardware'], ['SYSTEM', 'Software management', 'software'], ['SYSTEM', 'Monitoring', 'monitoring'],
-    ['TASKS & SCHEDULE', 'Task board', 'tasks'], ['TASKS & SCHEDULE', 'Schedule', 'schedule'], [null, 'Activity', 'activity'],
+    [null, 'Sites and Cells', 'planner'], [null, 'Ray tracing lab', 'ray'],
+    [null, 'Virtual drive test', 'drive'], [null, 'Package A/B test', 'ab'], [null, 'AI-RAN data generation', 'data'],
+    [null, 'Hardware inventory', 'hardware'], [null, 'Software management', 'software'], [null, 'Monitoring', 'monitoring'],
+    [null, 'Task board', 'tasks'], [null, 'Schedule', 'schedule'], [null, 'Activity', 'activity'],
   ];
   for (const [group, route, id] of routes) {
     const nav = page.getByRole('navigation', { name: 'Application workspaces' });

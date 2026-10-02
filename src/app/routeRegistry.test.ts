@@ -1,15 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { createWorkspaceState } from '../../workspaces.mjs';
 import { workspaceSchema } from '../api/schemas';
-import { previewRoutes, isPreviewRoute } from './routeRegistry';
+import { previewRoutes, isPreviewRoute, routeFromSearch } from './routeRegistry';
 
 const record = workspaceSchema.parse(createWorkspaceState(undefined, {
   id: '11111111-1111-4111-8111-111111111111', now: () => '2026-01-01T00:00:00Z',
 })).projects[0];
 
 describe('preview route registry', () => {
+  it('retains old workspace bookmarks and resolves lifecycle aliases without accepting arbitrary views', () => {
+    expect(routeFromSearch('?workspace=radio')).toBe('radio');
+    expect(routeFromSearch('?workspace=sites-and-cells')).toBe('planner');
+    expect(routeFromSearch('?workspace=propagation')).toBe('ray');
+    expect(routeFromSearch('?workspace=drive-analysis')).toBe('drive');
+    expect(routeFromSearch('?workspace=unknown')).toBeNull();
+  });
   it('maps the supported route leaves and rejects unknown IDs', () => {
-    expect(Object.keys(previewRoutes)).toEqual(['overview', 'projects', 'activity', 'artifacts', 'stack', 'ues', 'map', 'planner', 'radio', 'ray', 'drive', 'ab', 'data', 'hardware', 'software', 'monitoring', 'schedule', 'tasks']);
+    expect(Object.keys(previewRoutes)).toEqual(['overview', 'projects', 'activity', 'artifacts', 'stack', 'ues', 'map', 'planner', 'radio', 'ray', 'drive', 'ab', 'data', 'hardware', 'software', 'monitoring', 'schedule', 'tasks', 'study', 'scenarios', 'runs', 'measurements']);
+    expect(routeFromSearch('?workspace=measurement-datasets')).toBe('measurements');
+    expect(routeFromSearch('?workspace=jobs-and-runs')).toBe('runs');
+    expect(routeFromSearch('?workspace=baseline-candidates')).toBe('scenarios');
     expect(isPreviewRoute('overview')).toBe(true);
     expect(isPreviewRoute('projects')).toBe(true);
     expect(isPreviewRoute('activity')).toBe(true);
@@ -18,7 +28,7 @@ describe('preview route registry', () => {
     expect(isPreviewRoute('map')).toBe(true);
     expect(previewRoutes.map.label).toBe('City map');
     expect(isPreviewRoute('planner')).toBe(true);
-    expect(previewRoutes.planner.label).toBe('Site & cell planner');
+    expect(previewRoutes.planner.label).toBe('Sites and Cells');
     expect(isPreviewRoute('radio')).toBe(true);
     expect(previewRoutes.radio.label).toBe('Radio planner');
     expect(previewRoutes.ray.label).toBe('Ray tracing lab');

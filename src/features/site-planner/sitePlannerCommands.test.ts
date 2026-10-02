@@ -35,6 +35,20 @@ function controllerFor(apiWrite = vi.fn().mockImplementation(async (_draft: unkn
 }
 
 describe('site and cell planner controller intents', () => {
+  it('rejects blank required numbers without saving and accepts explicit zero where valid', async () => {
+    const { controller, api } = controllerFor();
+    await controller.hydrate();
+    const before = structuredClone(controller.getSnapshot().workspace);
+    for (const field of ['heightM', 'x', 'y'] as const)
+      for (const value of ['', '  ']) expect(() => applySiteField(controller, firstId, 'SITE-02', field, value)).toThrow(/requires a number/);
+    for (const field of ['azimuthDeg', 'downtiltDeg', 'txPowerDbm', 'bandwidthMhz'] as const)
+      for (const value of ['', '  ']) expect(() => applyCellField(controller, firstId, 'SITE-02-C2', field, value)).toThrow(/requires a number/);
+    expect(controller.getSnapshot().workspace).toEqual(before);
+    expect(api.write).not.toHaveBeenCalled();
+    await applyCellField(controller, firstId, 'SITE-02-C2', 'azimuthDeg', '0');
+    expect(projectAt(controller).sites[1].cells[1].azimuthDeg).toBe(0);
+    expect(api.write).toHaveBeenCalledTimes(2);
+  });
   it('saves allowlisted site fields and estimates geographic location from schematic x/y', async () => {
     const { controller } = controllerFor();
     await controller.hydrate();

@@ -35,7 +35,7 @@ test('Drive preview keeps measurement provenance, keyboard playback, scoped plan
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/frontend-preview.html');
   await page.getByRole('button', { name: 'Preview activity route' }).click();
-  await clickWorkspaceButton(page, /USE CASES/i);
+
   await clickWorkspaceButton(page, 'Virtual drive test');
   const drive = page.getByRole('region', { name: 'Drive preview route' });
   await expect(drive.getByText('SYNTHETIC DEMO · NOT MEASURED')).toBeVisible();
@@ -72,7 +72,7 @@ test('Drive preview keeps measurement provenance, keyboard playback, scoped plan
   expect((database.workspace.projects[0].project.useCases as { drive: { samples: number } }).drive.samples).toBe(34);
   await page.reload();
   await page.getByRole('button', { name: 'Preview activity route' }).click();
-  await clickWorkspaceButton(page, /USE CASES/i);
+
   await clickWorkspaceButton(page, 'Virtual drive test');
   await drive.getByRole('tab', { name: 'Route & simulation plan' }).click();
   await expect(drive.getByRole('spinbutton', { name: 'Samples along route' })).toHaveValue('34');
@@ -87,7 +87,9 @@ test('Drive preview keeps measurement provenance, keyboard playback, scoped plan
   const badChooser = page.waitForEvent('filechooser');
   await importButton.press('Enter');
   await (await badChooser).setFiles({ name: 'bad.csv', mimeType: 'text/csv', buffer: Buffer.from('wrong') });
+  await drive.getByRole('button', { name: 'Validate and preview' }).click();
   await expect(page.getByRole('alert')).toContainText('Missing columns');
+  await drive.getByRole('button', { name: 'Cancel import' }).click();
   await expect(drive.getByText('SYNTHETIC DEMO · NOT MEASURED')).toBeVisible();
   const chooser = page.waitForEvent('filechooser');
   await importButton.press('Enter');

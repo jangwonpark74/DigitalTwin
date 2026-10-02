@@ -41,6 +41,10 @@ describe('Mission Control React summary (not yet routed)', () => {
     expect(screen.getByText('Set radio target')).toBeTruthy();
     expect(screen.getByText('Planning only')).toBeTruthy();
     expect(screen.queryByText(/Review 7 planned tasks/)).toBeNull();
+    expect(within(screen.getByLabelText('Study inventory')).queryByText('COVERAGE PROXY')).toBeNull();
+    expect(screen.getByText('COVERAGE PROXY').closest('details')?.hasAttribute('open')).toBe(false);
+    await user.tab();
+    expect(document.activeElement?.tagName).toBe('SUMMARY');
     await user.tab();
     expect(document.activeElement).toBe(screen.getByRole('button', { name: /View all activity/i }));
     await user.keyboard('{Enter}');

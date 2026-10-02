@@ -1,5 +1,7 @@
 # Atlas RAN Twin — desktop UI/UX design specification
 
+> Historical design reference. Navigation and map descriptions below are superseded by the [RAN enhancement plan](ran-digital-twin-enhancement-plan.md) and [implementation status](ran-enhancement-implementation.md). Current React workflows use MapLibre, shared GPS datasets, lifecycle navigation, and an import review step.
+
 ## Purpose and product boundary
 
 A preparation studio for a 5G site/cell/radio-environment digital twin. A planner can describe a city/cluster, virtual RAN edge, GH200/H200/Grace placement, experiment inputs, tasks and monitoring contracts in one coherent workspace. This browser mockup is **not** a connected RAN or live operations console. It must never present synthetic coverage, planned dates, inventory targets or unverified software versions as measured/installed/executed facts.

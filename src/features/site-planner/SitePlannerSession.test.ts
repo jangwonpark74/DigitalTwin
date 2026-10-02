@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { defaultProject } from '../../../model.mjs';
 import { SitePlannerSession } from './SitePlannerSession';
 
+it('retains the selected sector on same-site synchronization and resets the inspector on project changes', () => {
+  const session = new SitePlannerSession('first', project());
+  session.selectCell('SITE-01-C2'); session.selectInspectorTab('antenna'); session.selectSite('SITE-01');
+  expect(session.getSnapshot()).toMatchObject({ selectedCellId: 'SITE-01-C2', inspectorTab: 'antenna' });
+  session.setProject('second', project());
+  expect(session.getSnapshot().inspectorTab).toBe('summary');
+});
+
 const project = () => structuredClone(defaultProject());
 
 describe('SitePlannerSession', () => {
@@ -9,7 +17,7 @@ describe('SitePlannerSession', () => {
     const first = project();
     const secondSite = first.sites[1];
     const session = new SitePlannerSession('project-a', first);
-    expect(session.getSnapshot()).toEqual({ projectId: 'project-a', selectedSiteId: 'SITE-01', selectedCellId: 'SITE-01-C1' });
+    expect(session.getSnapshot()).toEqual({ projectId: 'project-a', selectedSiteId: 'SITE-01', selectedCellId: 'SITE-01-C1', inspectorTab: 'summary' });
 
     expect(session.selectSite(secondSite.id)).toBe(true);
     expect(session.getSnapshot()).toMatchObject({ selectedSiteId: secondSite.id, selectedCellId: secondSite.cells[0].id });

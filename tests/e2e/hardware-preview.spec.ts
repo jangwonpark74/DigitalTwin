@@ -34,8 +34,7 @@ test('hardware preview stays planning-only across keyboard selection, scoped edi
   await stubWorkspace(page, database);
   await page.goto('/frontend-preview.html');
   await page.getByRole('button', { name: 'Preview activity route' }).click();
-  await clickWorkspaceButton(page, /SYSTEM/i);
-  await expect(page.getByRole('button', { name: 'Hardware inventory' })).toBeVisible({ timeout: 3000 });
+
   await clickWorkspaceButton(page, 'Hardware inventory');
   const hardware = page.getByRole('region', { name: 'Hardware preview route' });
   await expect(hardware.getByRole('heading', { name: 'Hardware topology & inventory' })).toBeVisible();
@@ -81,7 +80,7 @@ test('hardware preview stays planning-only across keyboard selection, scoped edi
   await expect(hardware.getByText('0 · NOT DISCOVERED').first()).toBeVisible();
   await page.reload();
   await page.getByRole('button', { name: 'Preview activity route' }).click();
-  await clickWorkspaceButton(page, /SYSTEM/i);
+
   await clickWorkspaceButton(page, 'Hardware inventory');
   await hardware.getByRole('tab', { name: 'Capacity & registry' }).click();
   await expect(hardware.locator('[data-pool-count="GH-POOL-02"]')).toHaveValue('3');

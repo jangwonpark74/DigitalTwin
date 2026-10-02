@@ -1,0 +1,7 @@
+.rf-map-marker.base-station-marker { position:absolute; z-index:2; transform:translate(-50%,calc(-100% - 8px)); display:flex; flex-direction:column; gap:2px; padding:7px 10px; border:2px solid #fff; border-radius:8px; background:#123e37; color:#fff; box-shadow:0 3px 12px #173e3740; font:600 10px system-ui; white-space:nowrap; pointer-events:none; }
+.base-station-marker strong { font-size:11px; letter-spacing:.02em; }
+.base-station-marker span { color:#c8e7dd; font-size:9px; }
+.base-station-marker::after { content:''; position:absolute; bottom:-9px; left:calc(50% - 6px); border-left:6px solid transparent; border-right:6px solid transparent; border-top:8px solid #fff; }
+.rf-map-marker.base-station-marker.selected { background:#71431a; }
+.base-station-marker.selected span { color:#ffe4be; }
+.rf-map-marker.base-station-marker[hidden] { display:none; }

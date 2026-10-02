@@ -1,25 +1,34 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent } from 'react';
 import { analyzeDmTrace, DM_METRICS, makeDemoTrace } from '../../../dm.mjs';
+import { dmTrendScale } from '../../../dm-trend.mjs';
 import { drivePlan, ROUTES } from '../../../usecases.mjs';
 import { AppController } from '../../app/AppController';
 import type { WorkspaceSnapshot } from '../../api/schemas';
 import { DriveSession } from './DriveSession';
 import { createDriveCommands } from './driveCommands';
+import DriveImportReview from './DriveImportReview';
+import { commitDriveImport } from './driveImportCommands';
+import { useProjectMapView } from '../city-map/ProjectMapSession';
+import DriveGeographicMap from './DriveGeographicMap';
+import type { SiteSceneProject } from '../site-planner/OpenSiteScene';
+import type { DriveMeasurements, DriveSample } from '../ray-tracing/driveKpi';
+import MeasurementCellAssociation from './MeasurementCellAssociation';
+import type { IdentitySite } from './cellIdentityTypes';
 
 type RecordItem = WorkspaceSnapshot['projects'][number];
 type DriveTab = 'analysis' | 'plan';
 type Technology = 'ALL' | 'LTE' | 'NR';
 type Metric = keyof typeof DM_METRICS;
-type Sample = { [key: string]: string | number; index: number; x: number; y: number; timeS: number; technology: 'LTE' | 'NR'; servingCell: string;
-  rsrpDbm: number; rsrqDb: number; sinrDb: number; dlMbps: number; ulMbps: number; event: string; provenance: string };
-type MetricSpec = { label: string; key: string; unit: string; poor: number; good: number };
+type Sample = { [key: string]: string | number | null; index: number; x: number; y: number; timeS: number; technology: 'LTE' | 'NR'; servingCell: string;
+  rsrpDbm: number | null; rsrqDb: number | null; sinrDb: number | null; dlMbps: number | null; ulMbps: number | null; event: string; provenance: string };
+type MetricSpec = { label: string; category: string; key: string; unit: string; poor: number; good: number };
 type Field = 'drive.route' | 'drive.samples' | 'drive.speedKph';
 type DriveProject = { map: { cluster: string }; sites: { id: string; name: string; x: number; y: number }[];
   useCases: { drive: { route: string; samples: number; speedKph: number } } };
 type DrivePlan = { route: { name: string; points: { x: number; y: number }[] };
   samples: { x: number; y: number }[]; requestedMetrics: string[] };
-type Trace = { source: string; samples: Sample[] };
-type Stats = { filtered: Sample[]; sampleCount: number; techCounts: { LTE: number; NR: number };
+type Trace = { source: string; coordinateMode?: string; samples: Sample[] };
+type Stats = { filtered: Sample[]; sampleCount: number; validCount: number; missingCount: number; techCounts: { LTE: number; NR: number };
   average: number | null; p10: number | null; weakCount: number; weakPercent: number | null;
   weakZones: { start: number; end: number }[]; events: Sample[]; handoverCount: number; cellChangeCount: number };
 const metrics = DM_METRICS as Record<Metric, MetricSpec>;
@@ -28,9 +37,9 @@ const routeOptions = ROUTES as Record<string, { name: string }>;
 const tabs: { id: DriveTab; label: string }[] = [
   { id: 'analysis', label: '4G/5G DM analysis' }, { id: 'plan', label: 'Route & simulation plan' },
 ];
-const colors = { good: '#149b84', watch: '#df9c39', poor: '#cb655b' };
+const colors = { good: '#149b84', watch: '#df9c39', poor: '#cb655b', unavailable: '#6f7f89' };
 const number = (value: number | null | undefined) => value == null ? '—' : value.toFixed(1);
-const grade = (value: number, spec: MetricSpec) => value < spec.poor ? 'poor' : value < spec.good ? 'watch' : 'good';
+const grade = (value: unknown, spec: MetricSpec) => typeof value !== 'number' || !Number.isFinite(value) ? 'unavailable' : value < spec.poor ? 'poor' : value < spec.good ? 'watch' : 'good';
 
 export default function DrivePreviewLeaf({ controller, record: recordProp, onError }: {
   controller: AppController; record: RecordItem; onError: (message: string) => void;
@@ -39,12 +48,17 @@ export default function DrivePreviewLeaf({ controller, record: recordProp, onErr
   const activeId = controllerState.workspace?.activeProjectId;
   const record = controllerState.workspace?.projects.find(item => item.id === activeId) ?? recordProp;
   const project = record.project as unknown as DriveProject;
-  const [session] = useState(() => new DriveSession(record.id, project));
+  const mapProject = record.project as unknown as SiteSceneProject;
+  const { session: mapSession, view: mapView } = useProjectMapView(controller, record.id, mapProject.map);
+  const [session] = useState(() => new DriveSession(record.id, project, mapSession));
   const state = useSyncExternalStore(session.subscribe, session.getSnapshot);
   const [settingDrafts, setSettingDrafts] = useState({
     route: project.useCases.drive.route, samples: String(project.useCases.drive.samples), speedKph: String(project.useCases.drive.speedKph),
   });
   const [busy, setBusy] = useState(false);
+  const [reviewFile, setReviewFile] = useState<File | null>(null);
+  const importGeneration = useRef(0);
+  useEffect(() => { importGeneration.current++; setReviewFile(null); return () => { importGeneration.current++; }; }, [record.id]);
   const tabsRef = useRef<Partial<Record<DriveTab, HTMLButtonElement>>>({});
   const fileInput = useRef<HTMLInputElement>(null);
   const plan = drivePlan(project) as DrivePlan;
@@ -61,10 +75,10 @@ export default function DrivePreviewLeaf({ controller, record: recordProp, onErr
   };
   const commands = createDriveCommands(controller, session, { download, onError, onSuccess: () => onError('') });
 
-  useEffect(() => { session.setProject(record.id, project); }, [record.id, project, session]);
+  useEffect(() => { session.setProject(record.id, project, mapSession); }, [record.id, project, session, mapSession]);
   useEffect(() => { setSettingDrafts({ route: project.useCases.drive.route,
     samples: String(project.useCases.drive.samples), speedKph: String(project.useCases.drive.speedKph) }); }, [signature]);
-  useEffect(() => () => session.pause(), [session]);
+  useEffect(() => () => { session.pause(false); session.detachMap(); }, [session, mapSession]);
 
   const trace = (state.trace ?? makeDemoTrace(project, plan)) as Trace;
   const stats = analyzeDmTrace(trace.samples, { technology: state.technology, metric: state.metric }) as Stats;
@@ -113,14 +127,21 @@ export default function DrivePreviewLeaf({ controller, record: recordProp, onErr
   };
   const importFile = async (file: File | undefined) => {
     if (!file) return;
+    const ticket = ++importGeneration.current;
     setBusy(true);
     try {
-      const imported = await session.importFile(file);
-      if (imported) await commands.onImport(file.name, imported.samples.length);
+      if (file.size > 1_000_000) throw new Error('DM CSV must be smaller than 1 MB');
+      const raw = await file.text();
+      if (ticket !== importGeneration.current || controller.getSnapshot().workspace?.activeProjectId !== record.id) return;
+      const header = raw.split(/\r?\n/, 1)[0];
+      if (header.includes('x_pct') && header.includes('y_pct') && !header.includes('latitude')) {
+        const imported = await session.importFile({ name: file.name, size: file.size, text: async () => raw });
+        if (imported) { await commands.onImport(file.name, imported.samples.length); setReviewFile(null); }
+      } else setReviewFile(file);
     } catch (cause) {
-      onError(cause instanceof Error ? cause.message : String(cause));
-      if (fileInput.current) fileInput.current.value = '';
-    } finally { setBusy(false); }
+      if (ticket === importGeneration.current) onError(cause instanceof Error ? cause.message : String(cause));
+    } finally { if (ticket === importGeneration.current) setBusy(false); }
+    if (fileInput.current) fileInput.current.value = '';
   };
 
   const panel = (title: string, caption: string, content: React.ReactNode, badge?: React.ReactNode) =>
@@ -168,29 +189,28 @@ export default function DrivePreviewLeaf({ controller, record: recordProp, onErr
 
   const renderSample = (sample: Sample | undefined) => sample ? <>
     <div className="dm-sample-summary"><strong>{sample.technology === 'NR' ? '5G NR' : '4G LTE'}</strong><span>{sample.servingCell}</span></div>
-    <div className="dm-sample-main"><span>Sample #{sample.index + 1} · t={number(sample.timeS)} s</span><strong className={`dm-value ${grade(Number(sample[spec.key]), spec)}`}>{number(Number(sample[spec.key]))} {spec.unit}</strong></div>
+    <div className="dm-sample-main"><span>Sample #{sample.index + 1} · t={number(sample.timeS)} s</span><strong className={`dm-value ${grade(sample[spec.key], spec)}`}>{number(sample[spec.key] as number | null)} {spec.unit}</strong></div>
     <div className="dm-sample-rows">{[
       ['RSRP / SS-RSRP', `${number(sample.rsrpDbm)} dBm`], ['RSRQ / SS-RSRQ', `${number(sample.rsrqDb)} dB`],
       ['SINR / SS-SINR', `${number(sample.sinrDb)} dB`], ['DL / UL throughput', `${number(sample.dlMbps)} / ${number(sample.ulMbps)} Mbps`],
       ['Event annotation', sample.event || 'none'], ['Plot location', `${number(sample.x)}%, ${number(sample.y)}%`],
     ].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
+    {trace.coordinateMode === 'gps' && <MeasurementCellAssociation measurements={trace as unknown as DriveMeasurements} sites={record.project.sites as IdentitySite[]}
+      sample={sample} onSite={siteId => mapSession.update({ siteId })} />}
     <p className="dm-caveat">{trace.source === 'synthetic-demo' ? 'Synthetic demonstration · no radio model produced this point.' : 'CSV import · source and RF calibration not verified.'}</p>
   </> : <div className="dm-empty">No samples for this radio technology. Choose another filter or import a trace containing it.</div>;
 
   const renderAnalysis = () => {
+    const geographic = trace.coordinateMode === 'gps';
     const sourceDemo = trace.source === 'synthetic-demo';
-    const sourceBadge = sourceDemo ? 'SYNTHETIC DEMO · NOT MEASURED' : 'IMPORTED CSV · UNVERIFIED';
+    const evidence = (record.project as { driveMeasurements?: { evidence?: { origin: string } } }).driveMeasurements?.evidence;
+    const sourceBadge = sourceDemo || evidence?.origin === 'synthetic' ? 'SYNTHETIC DEMO · NOT MEASURED' : 'IMPORTED CSV · UNVERIFIED';
     const cursor = Math.min(state.position, Math.max(0, stats.sampleCount - 1));
     const windowStart = Math.max(0, cursor - 10);
     const rows = stats.filtered.slice(windowStart, windowStart + 25);
-    const sampleValue = (sample: Sample) => Number(sample[spec.key]);
+    const sampleValue = (sample: Sample) => sample[spec.key] as number | null;
     const mapLine = stats.filtered.map(sample => `${sample.x * 9},${sample.y * 5.4}`).join(' ');
-    const trendValues = stats.filtered.map(sampleValue);
-    const min = trendValues.length ? Math.min(...trendValues, spec.poor) - (spec.unit === 'Mbps' ? 4 : 5) : 0;
-    const max = trendValues.length ? Math.max(...trendValues, spec.good) + (spec.unit === 'Mbps' ? 4 : 5) : 1;
-    const xTrend = (index: number) => 42 + 850 * index / Math.max(1, stats.sampleCount - 1);
-    const yTrend = (value: number) => 200 - 165 * (value - min) / (max - min || 1);
-    const stride = Math.max(1, Math.ceil(stats.sampleCount / 500));
+    const trend = dmTrendScale(stats.filtered, spec);
     return <>
       <div className="dm-source"><div><strong>{sourceBadge}</strong><span>{sourceDemo
         ? 'Deterministic UI illustration derived from the planned route, not Sionna-RT, measured RF, or an executed UE/RAN job.'
@@ -206,18 +226,20 @@ export default function DrivePreviewLeaf({ controller, record: recordProp, onErr
           if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); fileInput.current?.click(); }
         }}>↥ Import DM CSV<input ref={fileInput} type="file" id="dm-csv" accept=".csv,text/csv" hidden disabled={busy}
           onChange={event => { void importFile(event.currentTarget.files?.[0]); }}/></label>
-        <button type="button" className="button outline" id="dm-reset" onClick={() => session.resetDemo()}>Reset demo</button>
+        {!(record.project as { driveMeasurements?: unknown }).driveMeasurements && <button type="button" className="button outline" id="dm-reset" onClick={() => session.resetDemo()}>Reset demo</button>}
         <button type="button" className="button outline" id="dm-export" onClick={() => void run(() => commands.onAnalysisExport(session.buildAnalysisReport()))}>⇩ Analysis JSON</button>
       </div>
       <div className="dm-stats">
-        <article><span>AVERAGE {spec.label}</span><strong>{number(stats.average)} <small>{spec.unit}</small></strong><em>{stats.sampleCount} selected · LTE {stats.techCounts.LTE} / NR {stats.techCounts.NR}</em></article>
+        <article><span>AVERAGE {spec.label}</span><strong>{number(stats.average)} <small>{spec.unit}</small></strong><em>{stats.validCount} available · {stats.missingCount} missing · {stats.sampleCount} selected</em></article>
         <article><span>10TH PERCENTILE</span><strong>{number(stats.p10)} <small>{spec.unit}</small></strong><em>Lower-tail diagnostic · example threshold {spec.poor} {spec.unit}</em></article>
-        <article><span>WEAK SAMPLES</span><strong>{stats.weakCount} <small>/ {stats.sampleCount}</small></strong><em>{number(stats.weakPercent)}% below example threshold · {stats.weakZones.length} zones</em></article>
+        <article><span>WEAK SAMPLES</span><strong>{stats.weakCount} <small>/ {stats.validCount} available</small></strong><em>{number(stats.weakPercent)}% below example threshold · {stats.weakZones.length} zones</em></article>
         <article><span>RAN MOBILITY EVENTS</span><strong>{stats.handoverCount} <small>annotated HO</small></strong><em>{stats.cellChangeCount} adjacent serving-cell changes</em></article>
       </div>
       <div className="dm-main">
         {panel('Drive trace & RF quality', `Colored by ${spec.label} · click timeline events or scrub the cursor`, <>
-          <div className="dm-legend"><span><i className="dm-dot good"/> ≥ {spec.good} {spec.unit} · strong</span><span><i className="dm-dot watch"/> {spec.poor}–{spec.good} · watch</span><span><i className="dm-dot poor"/> &lt; {spec.poor} · weak</span><em>Example bands for UI review; tune against a real network acceptance policy.</em></div>
+          <div className="dm-legend"><span><i className="dm-dot good"/> ≥ {spec.good} {spec.unit} · strong</span><span><i className="dm-dot watch"/> {spec.poor}–{spec.good} · watch</span><span><i className="dm-dot poor"/> &lt; {spec.poor} · weak</span><span><i className="dm-dot unavailable" style={{ background: colors.unavailable }}/> Unavailable</span><em>Example bands for UI review; tune against a real network acceptance policy.</em></div>
+          {geographic ? <DriveGeographicMap project={mapProject} samples={stats.filtered as unknown as DriveSample[]}
+            session={mapSession} view={mapView} onSelect={index => session.jumpToSample(index)} /> : <>
           <div className="dm-map"><svg viewBox="0 0 900 540" role="img" aria-label={`${spec.label} map of the drive trace`}>
             <rect width="900" height="540" fill="#f3f8f8"/><g stroke="#dde8e8" strokeWidth="18" fill="none"><path d="M0 120 L900 230"/><path d="M80 400 L900 345"/><path d="M160 0 L265 540"/><path d="M600 0 L445 540"/></g>
             <polyline points={mapLine} fill="none" stroke="#91aaa9" strokeWidth="4" strokeDasharray="7 7"/>
@@ -225,6 +247,7 @@ export default function DrivePreviewLeaf({ controller, record: recordProp, onErr
               cx={sample.x * 9} cy={sample.y * 5.4} r="6" fill={colors[grade(sampleValue(sample), spec)]} opacity=".84"/>)}
             {selected && <g id="dm-marker" transform={`translate(${selected.x * 9} ${selected.y * 5.4})`}><circle r="16" fill="#153b4e33" stroke="#153b4e" strokeWidth="3"/><circle r="5" fill="#153b4e"/></g>}
           </svg><span>{sourceDemo ? 'SCHEMATIC TRACE · SYNTHETIC DEMO' : `IMPORTED TRACE · ${state.filename}`}</span></div>
+          </>}
           <div className="dm-playback"><button type="button" id="dm-play" className="button primary" disabled={!stats.sampleCount} onClick={() => session.play()}>{state.playing ? 'Ⅱ Pause' : '▶ Play trace'}</button>
             <input id="dm-position" type="range" aria-label="DM trace sample" min="0" max={Math.max(0, stats.sampleCount - 1)} value={cursor} disabled={!stats.sampleCount}
               onChange={event => session.seek(Number(event.currentTarget.value))}/><strong id="dm-position-label">{stats.sampleCount ? cursor + 1 : 0} / {stats.sampleCount}</strong></div>
@@ -232,19 +255,34 @@ export default function DrivePreviewLeaf({ controller, record: recordProp, onErr
         {panel('Selected sample', 'Per-sample LTE/NR DM inspector; all sources disclosed', <div id="dm-selected">{renderSample(selected)}</div>, badge(selected?.technology === 'NR' ? '5G NR' : selected ? '4G LTE' : 'NO DATA'))}
       </div>
       {panel('KPI trend / sample sequence', 'Compare quality over the drive trace; dashed reference is a UI-only threshold',
-        stats.sampleCount ? <div className="dm-trend"><svg viewBox="0 0 940 235" role="img" aria-label={`${spec.label} trend by sample number, with illustrative quality thresholds`}>
-          <g stroke="#e3edf0" strokeWidth="1"><line x1="42" y1="35" x2="900" y2="35"/><line x1="42" y1="117" x2="900" y2="117"/><line x1="42" y1="200" x2="900" y2="200"/></g>
-          <line x1="42" y1={yTrend(spec.poor)} x2="900" y2={yTrend(spec.poor)} stroke="#de948b" strokeWidth="1.5" strokeDasharray="6 5"/>
-          {Array.from({ length: Math.ceil(Math.max(0, stats.sampleCount - 1) / stride) }, (_, step) => {
-            const index = (step + 1) * stride; if (index >= stats.sampleCount) return null;
-            const previous = stats.filtered[index - stride], current = stats.filtered[index];
-            if (current.index - previous.index > stride) return null;
-            return <line key={current.index} x1={xTrend(index - stride)} y1={yTrend(sampleValue(previous))} x2={xTrend(index)} y2={yTrend(sampleValue(current))}
+        stats.validCount ? <div className="dm-trend">
+          <div className="dm-trend-meta"><div><span>KPI category · {spec.category}</span><strong>{spec.label} <small>({spec.unit})</small></strong></div>
+            <p>Scale {trend.minimum} to {trend.maximum} {spec.unit} · {trend.step} {spec.unit} / division</p>
+            <p className="dm-trend-reference">Example weak threshold: {spec.poor} {spec.unit}</p></div>
+          <svg viewBox="0 0 940 250" preserveAspectRatio="xMinYMid meet" role="img" aria-label={`${spec.label} trend by sample number, scale ${trend.minimum} to ${trend.maximum} ${spec.unit}, with illustrative quality thresholds`}>
+          <g className="dm-trend-y-ticks">{trend.ticks.map(value => <g key={value}>
+            <line x1={trend.plot.left} y1={trend.y(value)} x2={trend.plot.right} y2={trend.y(value)} stroke="#e3edf0" strokeWidth="1"/>
+            <text x={trend.plot.left - 10} y={trend.y(value) + 4} textAnchor="end" fill="#577381" fontSize="12">{value}</text>
+          </g>)}</g>
+          <text x={trend.plot.left - 10} y="12" textAnchor="end" fill="#577381" fontSize="12">{spec.unit}</text>
+          <path d={`M${trend.plot.left} ${trend.plot.top} V${trend.plot.bottom} H${trend.plot.right}`} fill="none" stroke="#acbec5"/>
+          <line className="dm-trend-threshold" x1={trend.plot.left} y1={trend.y(spec.poor)} x2={trend.plot.right} y2={trend.y(spec.poor)} stroke="#de948b" strokeWidth="1.5" strokeDasharray="6 5"/>
+          {trend.observations.slice(1).map((index, step) => {
+            const previousIndex = trend.observations[step];
+            const previous = stats.filtered[previousIndex], current = stats.filtered[index];
+            if (current.index - previous.index > index - previousIndex || stats.filtered.slice(previousIndex, index + 1).some(sample => !Number.isFinite(sampleValue(sample)))) return null;
+            return <line key={current.index} x1={trend.x(previousIndex)} y1={trend.y(sampleValue(previous)!)} x2={trend.x(index)} y2={trend.y(sampleValue(current)!)}
               stroke={colors[grade(sampleValue(current), spec)]} strokeWidth="3" strokeLinecap="round"/>;
           })}
-          <line id="dm-trend-cursor" x1={xTrend(cursor)} x2={xTrend(cursor)} y1="30" y2="204" stroke="#153b4e" strokeWidth="2" strokeDasharray="5 5"/>
-          <g fill="#577381" fontSize="11"><text x="42" y="224">start</text><text x="857" y="224">end</text></g>
-        </svg></div> : <div className="dm-empty">No matching samples for the trend chart.</div>)}
+          {trend.observations.map(index => Number.isFinite(sampleValue(stats.filtered[index]))
+            ? <circle key={`observation-${index}`} cx={trend.x(index)} cy={trend.y(sampleValue(stats.filtered[index])!)} r="3" fill={colors[grade(sampleValue(stats.filtered[index]), spec)]} /> : null)}
+          <line id="dm-trend-cursor" x1={trend.x(cursor)} x2={trend.x(cursor)} y1={trend.plot.top} y2={trend.plot.bottom} stroke="#153b4e" strokeWidth="2" strokeDasharray="5 5"/>
+          <g className="dm-trend-x-ticks" fill="#577381" fontSize="12">{trend.sampleTicks.map(index => <g key={index}>
+            <line x1={trend.x(index)} x2={trend.x(index)} y1={trend.plot.bottom} y2={trend.plot.bottom + 5} stroke="#acbec5"/>
+            <text x={trend.x(index)} y="226" textAnchor={index === 0 ? 'start' : index === stats.sampleCount - 1 ? 'end' : 'middle'}>{index + 1}</text>
+          </g>)}</g>
+          <text x={(trend.plot.left + trend.plot.right) / 2} y="246" textAnchor="middle" fill="#577381" fontSize="12">Selected sample sequence · {stats.sampleCount} samples</text>
+        </svg></div> : <div className="dm-empty">{stats.sampleCount ? `No available ${spec.label} values in this selection. Missing observations remain on the route.` : 'No matching samples for the trend chart.'}</div>)}
       <div className="lower-grid">
         {panel('Event timeline', `${stats.events.length} event annotations · not all cell changes imply successful handovers`, stats.events.length
           ? <div className="dm-event-list">{stats.events.slice(0, 20).map(sample => <button type="button" className="dm-event" key={sample.index} data-dm-jump={sample.index} onClick={() => session.jumpToSample(sample.index)}>
@@ -272,7 +310,14 @@ export default function DrivePreviewLeaf({ controller, record: recordProp, onErr
   return <section className="drive-preview" role="region" aria-label="Drive preview route">
     <div className="page-heading"><div><p className="eyebrow">5G RAN DIGITAL TWIN / {String((project.map as { cluster?: string }).cluster ?? '').toUpperCase()}</p>
       <h1>Virtual drive test</h1><p className="muted">Plan a software UE route and inspect 4G/5G drive-measurement-style RF evidence with explicit source provenance.</p></div></div>
-    <div className="summary-banner warn"><div><strong>Preparation workspace · RAN integration not connected</strong><p>Local GeoJSON and Sionna-RT path jobs are available when a compatible runtime is configured. Real vCore / vDU, GH200 discovery, and calibrated RF results remain unverified.</p></div><span className="mini-pill warn">RAN OFFLINE</span></div>
+    <details className="drive-runtime-boundary"><summary><span className="mini-pill warn">RAN OFFLINE</span> Local study · integration requirements</summary>
+      <p>Local GeoJSON and Sionna-RT path jobs are available when a compatible runtime is configured. Real vCore / vDU, GH200 discovery, and calibrated RF results remain unverified.</p></details>
+    {reviewFile && <DriveImportReview file={reviewFile} knownCellIds={mapProject.sites.flatMap(site => site.cells.map(cell => cell.id))}
+      project={mapProject} onCancel={() => setReviewFile(null)} onCommit={async measurements => {
+        await commitDriveImport(controller, record.id, measurements);
+        mapSession.update({ technology: 'ALL', metric: 'rsrp', selectedIndex: 0, driveVisible: true });
+        setReviewFile(null); onError('');
+      }} />}
     <div className="dm-tabs" role="tablist" aria-label="Virtual drive test workspaces">
       {tabs.map(tab => <button type="button" role="tab" key={tab.id} data-drive-tab={tab.id} aria-selected={state.tab === tab.id}
         aria-controls="drive-panel" tabIndex={state.tab === tab.id ? 0 : -1} ref={node => { if (node) tabsRef.current[tab.id] = node; }}

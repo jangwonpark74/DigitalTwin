@@ -1,0 +1,14 @@
+export type StudyDefinition = { objective: string; operator: string; rat: 'ALL' | 'LTE' | 'NR'; carrierMhz: number | null;
+  windowStart: string | null; windowEnd: string | null; version: number; createdAt: string };
+export type StudyRevision = { version: number; createdAt: string; inputJson: string; sha256: string };
+export type Baseline = Omit<StudyRevision, 'version'> & { id: string; name: string };
+export type Candidate = { id: string; name: string; baselineId: string; versions: StudyRevision[] };
+export type StudySelection = { kind: 'draft' } | { kind: 'baseline'; id: string } | { kind: 'candidate'; id: string; version: number };
+export type StudyState = { schemaVersion: 1; definitions: StudyDefinition[]; baselines: Baseline[]; candidates: Candidate[]; selection: StudySelection };
+export type StudyChange = { siteId: string; cellId?: string; field: string; before: number; after: number };
+export type StudyInputs = { sites: { id: string; name: string; heightM: number; cells: { id: string; inventoryIdentity?: InventoryIdentity; [field: string]: string | number | InventoryIdentity | undefined }[] }[];
+  driveMeasurements: { fileName: string; samples: unknown[]; evidence?: { datasetId: string; origin: string } } | null };
+export const studyState = (project: Record<string, unknown>) => project.study as StudyState | undefined;
+export const baselinePayload = (record: Baseline) => JSON.parse(record.inputJson) as { definition: StudyDefinition; inputs: StudyInputs };
+export const revisionPayload = (record: StudyRevision) => JSON.parse(record.inputJson) as { baselineId: string; issue: string; changes: StudyChange[] };
+import type { InventoryIdentity } from '../site-planner/inventoryIdentityTypes';

@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { createWorkspaceState } from '../../workspaces.mjs';
+import { clickWorkspaceButton } from './navigation';
 
 test('records React route, typing, OpenMap and repeated-navigation performance on one fixture', async ({ page }) => {
   test.setTimeout(60_000);
@@ -24,7 +25,7 @@ test('records React route, typing, OpenMap and repeated-navigation performance o
   const routeMs: number[] = [];
   const changeRoute = async (name: string, ready: () => Promise<unknown>) => {
     const started = await page.evaluate(() => performance.now());
-    await nav.getByRole('button', { name, exact: true }).click();
+    await clickWorkspaceButton(page, name);
     await ready();
     routeMs.push(await page.evaluate(start => performance.now() - start, started));
   };
@@ -35,8 +36,7 @@ test('records React route, typing, OpenMap and repeated-navigation performance o
   await expect(page.getByText(/3D RF scene ready/)).toBeVisible();
   const firstOpenMapMs = await page.evaluate(start => performance.now() - start, firstOpenMapStarted);
 
-  await nav.getByRole('button', { name: /USE CASES/ }).click();
-  await nav.getByRole('button', { name: 'Virtual drive test', exact: true }).click();
+  await clickWorkspaceButton(page, 'Virtual drive test');
   await expect(page.getByRole('region', { name: 'Drive preview route' })).toBeVisible();
   await page.getByRole('tab', { name: 'Route & simulation plan' }).click();
   const samples = page.getByRole('spinbutton', { name: 'Samples along route' });
@@ -53,7 +53,7 @@ test('records React route, typing, OpenMap and repeated-navigation performance o
   const typingFrameMs = await samples.evaluate(field =>
     Number(field.dataset.typingRendered) - Number(field.dataset.typingStarted));
 
-  await changeRoute('Mission control', () => expect(page.getByRole('heading', { name: 'Mission control' })).toBeVisible());
+  await changeRoute('Mission control', () => expect(page.getByRole('heading', { name: '5G RAN twin mission control' })).toBeVisible());
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Performance.enable');
   const heapUsed = async () => {
@@ -67,7 +67,7 @@ test('records React route, typing, OpenMap and repeated-navigation performance o
     await changeRoute('City map', () => expect(page.getByRole('region', { name: 'Radio map preview route' })).toBeVisible());
     await page.getByRole('button', { name: 'Project 3D' }).click();
     await expect(page.getByText(/3D RF scene ready/)).toBeVisible();
-    await changeRoute('Mission control', () => expect(page.getByRole('heading', { name: 'Mission control' })).toBeVisible());
+    await changeRoute('Mission control', () => expect(page.getByRole('heading', { name: '5G RAN twin mission control' })).toBeVisible());
   }
   const heapAfterBytes = await heapUsed();
   await changeRoute('City map', () => expect(page.getByRole('region', { name: 'Radio map preview route' })).toBeVisible());

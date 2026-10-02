@@ -1,9 +1,10 @@
 import { analyzeDmTrace, DM_METRICS } from './dm.mjs';
+import { dmTrendScale } from './dm-trend.mjs';
 
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const fmt=value=>value===null?'—':Number(value).toFixed(1);
-const grade=(value,spec)=>value<spec.poor?'poor':value<spec.good?'watch':'good';
-const color={poor:'#df6558',watch:'#e5a346',good:'#17a583'};
+const fmt=value=>Number.isFinite(value)?value.toFixed(1):'—';
+const grade=(value,spec)=>!Number.isFinite(value)?'unavailable':value<spec.poor?'poor':value<spec.good?'watch':'good';
+const color={poor:'#df6558',watch:'#e5a346',good:'#17a583',unavailable:'#6f7f89'};
 const xMap=sample=>sample.x*9, yMap=sample=>sample.y*5.4;
 
 export function dmSampleDetails(sample,spec) {
@@ -20,26 +21,26 @@ function mapChart(p,trace,stats,spec,selected) {
   for(let i=stride;i<filtered.length;i+=stride) {
     const a=filtered[i-stride],b=filtered[i];
     if(b.index-a.index>stride) continue;
-    segments.push(`<line x1="${xMap(a)}" y1="${yMap(a)}" x2="${xMap(b)}" y2="${yMap(b)}" stroke="${color[grade(b[spec.key],spec)]}" stroke-width="7" stroke-linecap="round"/>`);
+    segments.push(`<line x1="${xMap(a)}" y1="${yMap(a)}" x2="${xMap(b)}" y2="${yMap(b)}" stroke="${color[filtered.slice(i-stride,i+1).some(s=>!Number.isFinite(s[spec.key]))?'unavailable':grade(b[spec.key],spec)]}" stroke-width="7" stroke-linecap="round"/>`);
   }
   return `<div class="dm-map"><svg viewBox="0 0 900 540" role="img" aria-label="Schematic drive route colored by ${esc(spec.label)}; not a georeferenced street map"><rect width="900" height="540" fill="#eef6f8"/><path d="M0 460 Q340 410 900 485 L900 540 L0 540Z" fill="#d8edf3"/><g stroke="#bdd4dc" stroke-width="12" fill="none"><path d="M0 120 L900 230"/><path d="M80 400 L900 345"/><path d="M160 0 L265 540"/><path d="M600 0 L445 540"/></g><polyline points="${faded}" fill="none" stroke="#8caeb5" stroke-width="4" stroke-dasharray="8 6"/>${segments.join('')}${p.sites.map(s=>`<g><circle cx="${s.x*9}" cy="${s.y*5.4}" r="10" fill="#fff" stroke="#218a80" stroke-width="3"/><text x="${s.x*9+14}" y="${s.y*5.4-12}" fill="#376273" font-size="12">${esc(s.id)}</text></g>`).join('')}<g id="dm-marker" transform="translate(${selected?xMap(selected):0} ${selected?yMap(selected):0})" ${selected?'':'display="none"'}><circle r="16" fill="#ffffff" stroke="#143e50" stroke-width="4"/><circle r="5" fill="#139b7f"/></g></svg><div class="dm-map-caption">${trace.coordinateMode==='gps-normalized-schematic'?'GPS coordinates normalized to this canvas · NOT aligned with OSM':'Canvas percentages · NOT georeferenced'}</div></div>`;
 }
 function trendChart(stats,spec,position) {
   const samples=stats.filtered;
   if(!samples.length) return '<div class="dm-empty">No matching samples for the trend chart.</div>';
-  const values=samples.map(s=>s[spec.key]);
-  const minimum=Math.min(...values,spec.poor)-(spec.unit==='Mbps'?4:5);
-  const maximum=Math.max(...values,spec.good)+(spec.unit==='Mbps'?4:5);
-  const x=i=>42+850*i/Math.max(1,samples.length-1);
-  const y=v=>200-165*(v-minimum)/(maximum-minimum);
-  const stride=Math.max(1,Math.ceil(samples.length/500));
+  const values=samples.map(s=>s[spec.key]).filter(Number.isFinite);
+  if(!values.length) return '<div class="dm-empty">No available KPI values in this selection. Missing observations remain on the route.</div>';
+  const {minimum,maximum,step,ticks,sampleTicks,observations,plot,x,y}=dmTrendScale(samples,spec);
   const lines=[];
-  for(let i=stride;i<samples.length;i+=stride) {
-    const a=samples[i-stride],b=samples[i];
-    if(b.index-a.index>stride) continue;
-    lines.push(`<line x1="${x(i-stride)}" y1="${y(a[spec.key])}" x2="${x(i)}" y2="${y(b[spec.key])}" stroke="${color[grade(b[spec.key],spec)]}" stroke-width="3" stroke-linecap="round"/>`);
+  for(let i=1;i<observations.length;i++) {
+    const previous=observations[i-1],current=observations[i],a=samples[previous],b=samples[current];
+    if(b.index-a.index>current-previous || samples.slice(previous,current+1).some(s=>!Number.isFinite(s[spec.key]))) continue;
+    lines.push(`<line x1="${x(previous)}" y1="${y(a[spec.key])}" x2="${x(current)}" y2="${y(b[spec.key])}" stroke="${color[grade(b[spec.key],spec)]}" stroke-width="3" stroke-linecap="round"/>`);
   }
-  return `<div class="dm-trend"><svg viewBox="0 0 940 235" role="img" aria-label="${esc(spec.label)} trend by sample number, with illustrative quality thresholds"><g stroke="#e3edf0" stroke-width="1"><line x1="42" y1="35" x2="900" y2="35"/><line x1="42" y1="117" x2="900" y2="117"/><line x1="42" y1="200" x2="900" y2="200"/></g><line x1="42" y1="${y(spec.poor)}" x2="900" y2="${y(spec.poor)}" stroke="#de948b" stroke-width="1.5" stroke-dasharray="6 5"/>${lines.join('')}<line id="dm-trend-cursor" x1="${x(position)}" x2="${x(position)}" y1="30" y2="204" stroke="#153b4e" stroke-width="2" stroke-dasharray="5 5"/><g fill="#577381" font-size="11"><text x="2" y="39">${fmt(maximum)}</text><text x="2" y="${y(spec.poor)-7}">${fmt(spec.poor)}</text><text x="2" y="204">${fmt(minimum)}</text><text x="42" y="224">start</text><text x="857" y="224">end</text></g></svg></div>`;
+  const yTicks=ticks.map(value=>`<g><line x1="${plot.left}" y1="${y(value)}" x2="${plot.right}" y2="${y(value)}" stroke="#e3edf0" stroke-width="1"/><text x="${plot.left-10}" y="${y(value)+4}" text-anchor="end" fill="#577381" font-size="12">${value}</text></g>`).join('');
+  const xTicks=sampleTicks.map(index=>`<g><line x1="${x(index)}" x2="${x(index)}" y1="${plot.bottom}" y2="${plot.bottom+5}" stroke="#acbec5"/><text x="${x(index)}" y="226" text-anchor="${index===0?'start':index===samples.length-1?'end':'middle'}">${index+1}</text></g>`).join('');
+  const points=observations.filter(index=>Number.isFinite(samples[index][spec.key])).map(index=>`<circle cx="${x(index)}" cy="${y(samples[index][spec.key])}" r="3" fill="${color[grade(samples[index][spec.key],spec)]}"/>`).join('');
+  return `<div class="dm-trend"><div class="dm-trend-meta"><div><span>KPI category · ${esc(spec.category)}</span><strong>${esc(spec.label)} <small>(${spec.unit})</small></strong></div><p>Scale ${minimum} to ${maximum} ${spec.unit} · ${step} ${spec.unit} / division</p><p class="dm-trend-reference">Example weak threshold: ${spec.poor} ${spec.unit}</p></div><svg viewBox="0 0 940 250" preserveAspectRatio="xMinYMid meet" role="img" aria-label="${esc(spec.label)} trend by sample number, scale ${minimum} to ${maximum} ${spec.unit}, with illustrative quality thresholds"><g class="dm-trend-y-ticks">${yTicks}</g><text x="${plot.left-10}" y="12" text-anchor="end" fill="#577381" font-size="12">${spec.unit}</text><path d="M${plot.left} ${plot.top} V${plot.bottom} H${plot.right}" fill="none" stroke="#acbec5"/><line class="dm-trend-threshold" x1="${plot.left}" y1="${y(spec.poor)}" x2="${plot.right}" y2="${y(spec.poor)}" stroke="#de948b" stroke-width="1.5" stroke-dasharray="6 5"/>${lines.join('')}${points}<line id="dm-trend-cursor" x1="${x(position)}" x2="${x(position)}" y1="${plot.top}" y2="${plot.bottom}" stroke="#153b4e" stroke-width="2" stroke-dasharray="5 5"/><g class="dm-trend-x-ticks" fill="#577381" font-size="12">${xTicks}</g><text x="${(plot.left+plot.right)/2}" y="246" text-anchor="middle" fill="#577381" font-size="12">Selected sample sequence · ${samples.length} samples</text></svg></div>`;
 }
 export function dmView(project,h,trace,{technology='ALL',metric='rsrp',position=0,filename='',playing=false}={}) {
   const stats=analyzeDmTrace(trace.samples,{technology,metric}),spec=DM_METRICS[metric];
@@ -47,7 +48,7 @@ export function dmView(project,h,trace,{technology='ALL',metric='rsrp',position=
   const sourceDemo=trace.source==='synthetic-demo';
   const sourceBadge=sourceDemo?'SYNTHETIC DEMO · NOT MEASURED':'IMPORTED CSV · UNVERIFIED';
   const toolbar=`<div class="dm-toolbar"><label class="form-field"><span>Radio access</span><select class="select" id="dm-technology"><option value="ALL" ${technology==='ALL'?'selected':''}>4G + 5G</option><option value="LTE" ${technology==='LTE'?'selected':''}>4G LTE</option><option value="NR" ${technology==='NR'?'selected':''}>5G NR</option></select></label><label class="form-field"><span>Color route by</span><select class="select" id="dm-metric">${Object.entries(DM_METRICS).map(([id,m])=>`<option value="${id}" ${id===metric?'selected':''}>${m.label}</option>`).join('')}</select></label><label class="button outline dm-import">↥ Import DM CSV<input type="file" id="dm-csv" accept=".csv,text/csv" hidden/></label><button class="button outline" id="dm-reset">Reset demo</button><button class="button outline" id="dm-export">⇩ Analysis JSON</button></div>`;
-  const numbers=`<div class="dm-stats"><article><span>AVERAGE ${esc(spec.label)}</span><strong>${fmt(stats.average)} <small>${spec.unit}</small></strong><em>${stats.sampleCount} selected · LTE ${stats.techCounts.LTE} / NR ${stats.techCounts.NR}</em></article><article><span>10TH PERCENTILE</span><strong>${fmt(stats.p10)} <small>${spec.unit}</small></strong><em>Lower-tail diagnostic · example threshold ${spec.poor} ${spec.unit}</em></article><article><span>WEAK SAMPLES</span><strong>${stats.weakCount} <small>/ ${stats.sampleCount}</small></strong><em>${fmt(stats.weakPercent)}% below example threshold · ${stats.weakZones.length} zones</em></article><article><span>RAN MOBILITY EVENTS</span><strong>${stats.handoverCount} <small>annotated HO</small></strong><em>${stats.cellChangeCount} adjacent serving-cell changes</em></article></div>`;
+  const numbers=`<div class="dm-stats"><article><span>AVERAGE ${esc(spec.label)}</span><strong>${fmt(stats.average)} <small>${spec.unit}</small></strong><em>${stats.validCount} available · ${stats.missingCount} missing · ${stats.sampleCount} selected · LTE ${stats.techCounts.LTE} / NR ${stats.techCounts.NR}</em></article><article><span>10TH PERCENTILE</span><strong>${fmt(stats.p10)} <small>${spec.unit}</small></strong><em>Lower-tail diagnostic · example threshold ${spec.poor} ${spec.unit}</em></article><article><span>WEAK SAMPLES</span><strong>${stats.weakCount} <small>/ ${stats.validCount} available</small></strong><em>${fmt(stats.weakPercent)}% below example threshold · ${stats.weakZones.length} zones</em></article><article><span>RAN MOBILITY EVENTS</span><strong>${stats.handoverCount} <small>annotated HO</small></strong><em>${stats.cellChangeCount} adjacent serving-cell changes</em></article></div>`;
   const tracePanel=`<div class="dm-legend"><span><i class="dm-dot good"></i> ≥ ${spec.good} ${spec.unit} · strong</span><span><i class="dm-dot watch"></i> ${spec.poor}–${spec.good} · watch</span><span><i class="dm-dot poor"></i> &lt; ${spec.poor} · weak</span><em>Example bands for UI review; tune against a real network acceptance policy.</em></div>${mapChart(project,trace,stats,spec,selected)}<div class="dm-playback"><button id="dm-play" class="button primary" ${!stats.sampleCount?'disabled':''}>${playing?'Ⅱ Pause':'▶ Play trace'}</button><input id="dm-position" type="range" aria-label="DM trace sample" min="0" max="${Math.max(0,stats.sampleCount-1)}" value="${cursor}" ${!stats.sampleCount?'disabled':''}/><strong id="dm-position-label">${stats.sampleCount?cursor+1:0} / ${stats.sampleCount}</strong></div>`;
   const active=`<div id="dm-selected">${dmSampleDetails(selected,spec)}</div>`;
   const events=stats.events.slice(0,20).map(s=>`<button class="dm-event" data-dm-jump="${s.index}"><span>#${s.index+1} · ${fmt(s.timeS)} s</span><strong>${esc(s.event)}</strong><small>${esc(s.technology)} · ${esc(s.servingCell)}</small></button>`).join('');

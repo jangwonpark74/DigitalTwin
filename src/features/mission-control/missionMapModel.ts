@@ -43,6 +43,7 @@ export function buildMissionMapModel(record: ProjectRecord | null, selectedSiteI
       selected: selected.id === site.id, cells: site.cells.map(cell => ({ ...cell })) };
   });
   const location = selected.radioLocation;
+  const selectedMarker = markers.find(marker => marker.id === selected.id)!;
   const coordinates = Number.isFinite(location.latitude) && Number.isFinite(location.longitude)
     ? `${location.latitude!.toFixed(5)}, ${location.longitude!.toFixed(5)} · ${location.source === 'map-estimate' ? 'map estimate' : 'manual'}`
     : 'Not set';
@@ -68,7 +69,8 @@ export function buildMissionMapModel(record: ProjectRecord | null, selectedSiteI
       frontEnd: selected.frontEnd === 'MMU' ? 'Virtual MMU' : 'Virtual antenna',
       height: `${selected.heightM} m`, sectors: selected.cells.map(cell => `${cell.azimuthDeg}°`).join(' / '),
       radioMode: `${selected.radio.manufacturer} · ${selected.radio.technology} → ${selected.frontEnd}`,
-      mapPosition: `${selected.x.toFixed(1)}%, ${selected.y.toFixed(1)}%`, coordinates,
+      mapPosition: selectedMarker.visible ? `${(selectedMarker.x / 9).toFixed(1)}%, ${(selectedMarker.y / 5.4).toFixed(1)}%`
+        : 'Outside map scope', coordinates,
       backhaul: 'Real vDU · unverified',
     },
   };

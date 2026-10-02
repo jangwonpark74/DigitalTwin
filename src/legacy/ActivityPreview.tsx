@@ -4,7 +4,7 @@ import { buildUseCasePlanSpec } from '../../usecases.mjs';
 import { activateWorkspaceProject, appendWorkspaceLog } from '../../workspaces.mjs';
 import { AppController } from '../app/AppController';
 import PreviewWorkspaceShell from '../app/PreviewWorkspaceShell';
-import { isPreviewRoute, previewRoutes, type PreviewRouteId } from '../app/routeRegistry';
+import { isPreviewRoute, previewRoutes, routeFromSearch, type PreviewRouteId } from '../app/routeRegistry';
 import { buildPreviewContext } from '../app/selectors';
 import type { WorkspaceSnapshot } from '../api/schemas';
 import DrivePreviewLeaf from '../features/drive/DrivePreviewLeaf';
@@ -23,6 +23,7 @@ import '../features/artifacts/artifacts-preview.css';
 import './activity-preview.css';
 
 import RunRecordsPanel from '../features/artifacts/RunRecordsPanel';
+import RunsWorkspace from '../features/artifacts/RunsWorkspace';
 import RayTracingPreviewLeaf from '../features/ray-tracing/RayTracingPreviewLeaf';
 import VirtualUeFleetLeaf from '../features/ues/VirtualUeFleetLeaf';
 import StackPreviewLeaf from '../features/stack/StackPreviewLeaf';
@@ -35,10 +36,13 @@ import MonitoringPreviewLeaf from '../features/monitoring/MonitoringPreviewLeaf'
 import ActivityPreviewLeaf from '../features/activity/ActivityPreviewLeaf';
 import ProjectsPreviewLeaf from '../features/projects/ProjectsPreviewLeaf';
 import MissionControlPage from '../features/mission-control/MissionControlPage';
+import StudyWorkspace from '../features/study/StudyWorkspace';
+import StudyContextBar from '../features/study/StudyContextBar';
+import MeasurementDatasetsWorkspace from '../features/drive/MeasurementDatasetsWorkspace';
 
-type ActivityPreviewProps = { controller?: AppController; initialRoute?: PreviewRouteId };
+type ActivityPreviewProps = { controller?: AppController; initialRoute?: PreviewRouteId; syncUrl?: boolean };
 
-export default function ActivityPreview({ controller: provided, initialRoute = 'activity' }: ActivityPreviewProps) {
+export default function ActivityPreview({ controller: provided, initialRoute = 'activity', syncUrl = false }: ActivityPreviewProps) {
   const [controller] = useState(() => provided ?? new AppController());
   const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const [radioSession] = useState(() => new RadioSession('pending', { sites: [] }));
@@ -66,11 +70,31 @@ export default function ActivityPreview({ controller: provided, initialRoute = '
   }, [snapshot.status]);
 
   const navigate = useCallback((route: string) => {
+    if (route === 'site-position') {
+      sitePlannerSession.selectInspectorTab('position');
+      route = 'planner';
+    }
     if (isPreviewRoute(route)) {
+      setActionError('');
       setRoute(route);
+      if (syncUrl) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('workspace', route);
+        if (url.href !== window.location.href) window.history.pushState({}, '', url);
+      }
       focusTarget.current?.focus({ preventScroll: true });
     }
-  }, [controller]);
+  }, [syncUrl, sitePlannerSession]);
+
+  useEffect(() => {
+    if (!syncUrl) return;
+    const restore = () => {
+      setRoute(routeFromSearch(window.location.search) ?? initialRoute);
+      focusTarget.current?.focus({ preventScroll: true });
+    };
+    window.addEventListener('popstate', restore);
+    return () => window.removeEventListener('popstate', restore);
+  }, [syncUrl, initialRoute]);
 
   const selectSite = useCallback((siteId: string) => {
     const state = controller.getSnapshot().workspace;
@@ -152,8 +176,9 @@ export default function ActivityPreview({ controller: provided, initialRoute = '
         </label>
       )}
       {snapshot.status === 'loading' || snapshot.status === 'idle' ? <p role="status">Loading local workspace…</p> : null}
+      {active && <StudyContextBar record={active} onOpen={() => navigate('scenarios')} onEvidence={() => navigate('measurements')} />}
       {snapshot.status === 'saving' ? <p className="preview-save-status" role="status">Saving to the local database…</p> : null}
-      {actionError && !snapshot.error && !snapshot.dirty && <div role="alert">Input rejected · {actionError}</div>}
+      {actionError && !snapshot.error && !snapshot.dirty && route !== 'planner' && route !== 'radio' && <div role="alert">Input rejected · {actionError}</div>}
       {(snapshot.error || (actionError && snapshot.dirty)) && <div role="alert">Database save needs attention · {actionError || snapshot.error}
         <button type="button" onClick={() => {
           setActionError('');
@@ -192,6 +217,8 @@ export default function ActivityPreview({ controller: provided, initialRoute = '
       {route === 'projects' ? <ProjectsPreviewLeaf controller={controller} onNavigate={navigate} />
         : route === 'overview' ? <MissionControlPage controller={controller} onNavigate={navigate} />
         : active && (route === 'stack' ? <StackPreviewLeaf controller={controller} record={active} />
+        : route === 'study' || route === 'scenarios' ? <StudyWorkspace controller={controller} record={active} onNavigate={navigate} initialPanel={route === 'study' ? 'definition' : 'scenarios'} />
+        : route === 'measurements' ? <MeasurementDatasetsWorkspace controller={controller} record={active} onNavigate={navigate} />
         : route === 'ab' ? <AbPreviewLeaf controller={controller} record={active} onExport={() => { void exportUseCase('ab'); }} />
         : route === 'data' ? <DataPreviewLeaf controller={controller} record={active} onExport={() => { void exportUseCase('data'); }} />
         : route === 'schedule' ? <SchedulePreviewLeaf controller={controller} record={active} />
@@ -201,12 +228,13 @@ export default function ActivityPreview({ controller: provided, initialRoute = '
         ? <DrivePreviewLeaf controller={controller} record={active} onError={setActionError} />
         : route === 'hardware' ? <HardwarePreviewLeaf controller={controller} record={active} onError={setActionError} />
         : route === 'planner' ? <SitePlannerPreviewLeaf controller={controller} record={active} session={sitePlannerSession}
-          onError={setActionError} onNavigate={navigate} />
+          radioSession={radioSession} onError={setActionError} onNavigate={navigate} />
         : route === 'radio' ? <RadioPreviewLeaf controller={controller} record={active} session={radioSession}
-          onError={setActionError} onNavigate={navigate} />
+          plannerSession={sitePlannerSession} onError={setActionError} onNavigate={navigate} />
         : route === 'map' ? <RadioMapPreview controller={controller} record={active} session={radioSession}
-          onError={setActionError} onComplete={() => navigate('radio')} onNavigate={navigate} />
+          onError={setActionError} onComplete={() => navigate('site-position')} onNavigate={navigate} />
         : route === 'ray' ? <RayTracingPreviewLeaf controller={controller} record={active} onNavigate={navigate} />
+        : route === 'runs' ? <RunsWorkspace controller={controller} record={active} onNavigate={navigate} />
         : route === 'software' ? <SoftwarePreviewLeaf controller={controller} record={active} />
         : route === 'monitoring' ? <MonitoringPreviewLeaf controller={controller} record={active} />
         : route === 'activity' ? <ActivityPreviewLeaf record={active} onExport={exportManifest} />

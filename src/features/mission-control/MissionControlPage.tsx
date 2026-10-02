@@ -1,4 +1,8 @@
-import { useState, useSyncExternalStore } from 'react';
+import { useSyncExternalStore } from 'react';
+import type { WorkspaceSnapshot } from '../../api/schemas';
+import { useProjectMapView } from '../city-map/ProjectMapSession';
+import type { SiteSceneProject } from '../site-planner/OpenSiteScene';
+import MissionControlProjectMap from './MissionControlProjectMap';
 import type { AppController } from '../../app/AppController';
 import { setMissionControlAssumption, setMissionControlScenario } from './missionControlCommands';
 import { buildMissionControlModel } from './missionControlModel';
@@ -9,6 +13,7 @@ import MissionControlMap, { MissionControlSiteInspector, type MapLayers } from '
 import MissionControlScenarioControls from './MissionControlScenarioControls';
 import MissionControlSummary, { MissionControlActivity, MissionControlHero, MissionControlReadiness } from './MissionControlSummary';
 import MissionControlWorkflows from './MissionControlWorkflows';
+import { studyNextActions, studyReadiness } from './studyReadiness';
 
 type Props = { controller: AppController; onNavigate: (route: string) => void; layers?: MapLayers };
 
@@ -17,21 +22,27 @@ export default function MissionControlPage({ controller, onNavigate, layers }: P
   const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const record = snapshot.workspace?.projects.find(item => item.id === snapshot.workspace?.activeProjectId) ?? null;
   const model = buildMissionControlModel(record, { loading: snapshot.status === 'idle' || snapshot.status === 'loading' });
-  const [siteSelection, setSiteSelection] = useState<{ projectId: string; siteId: string } | null>(null);
-  if (model.kind !== 'ready') return <MissionControlSummary model={model} onNavigate={onNavigate} />;
+  if (model.kind !== 'ready' || !record) return <MissionControlSummary model={model} onNavigate={onNavigate} />;
 
-  const selectedSiteId = siteSelection && siteSelection.projectId === record?.id ? siteSelection.siteId : undefined;
-  const map = buildMissionMapModel(record, selectedSiteId);
+  return <ReadyMissionControlPage key={record.id} controller={controller} record={record} model={model} onNavigate={onNavigate} layers={layers} />;
+}
+
+function ReadyMissionControlPage({ controller, record, model, onNavigate, layers }: Props & {
+  record: WorkspaceSnapshot['projects'][number]; model: Extract<ReturnType<typeof buildMissionControlModel>, { kind: 'ready' }>;
+}) {
+  const project = record.project as unknown as SiteSceneProject;
+  const { session, view } = useProjectMapView(controller, record.id, project.map);
+  const map = buildMissionMapModel(record, view.siteId ?? undefined);
   if (map.kind !== 'ready') return <MissionControlMap model={map} onSelect={() => {}} onNavigate={onNavigate} />;
   return <div className="mission-control-page">
     <MissionControlHero model={model} />
-    <MissionControlLaunchpad tasks={model.tasks} onNavigate={onNavigate} />
+    <MissionControlLaunchpad actions={studyNextActions(project)} onNavigate={onNavigate} />
     <div className="mission-control-main-grid">
-      <MissionControlMap model={map} onNavigate={onNavigate} layers={layers} showInspector={false}
+      <MissionControlProjectMap record={record} model={map} session={session} view={view} layers={layers}
         onSelect={siteId => {
-          if (map.markers.some(marker => marker.id === siteId)) setSiteSelection({ projectId: map.projectId, siteId });
+          if (map.markers.some(marker => marker.id === siteId)) session.update({ siteId });
         }} />
-      <MissionControlReadiness model={model} />
+      <MissionControlReadiness model={model} gates={studyReadiness(project)} onNavigate={onNavigate} />
     </div>
     <MissionControlWorkflows onNavigate={onNavigate} />
     <div className="mission-control-lower-grid">

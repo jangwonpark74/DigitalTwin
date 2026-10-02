@@ -6,6 +6,11 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from study_storage import validate_study, assert_study_transition
+from study_run import validate_run_capture, validate_retry_capture
+from drive_storage import validate_drive_measurements
+from measurement_storage import validate_measurement_library, assert_measurement_transition
+from network_identity import validate_inventory_identities
 
 
 class StoreConflict(Exception):
@@ -61,7 +66,17 @@ class ProjectStore:
                     input_json TEXT NOT NULL, result_json TEXT, error TEXT
                 );
                 CREATE INDEX IF NOT EXISTS task_runs_project_created ON task_runs(project_id, created_at DESC);
+                CREATE TABLE IF NOT EXISTS run_events (
+                    run_id TEXT NOT NULL REFERENCES task_runs(id) ON DELETE CASCADE,
+                    sequence INTEGER NOT NULL, happened_at TEXT NOT NULL, status TEXT NOT NULL, detail TEXT NOT NULL,
+                    PRIMARY KEY (run_id, sequence)
+                );
             """)
+            columns = {row["name"] for row in db.execute("PRAGMA table_info(task_runs)")}
+            if "retry_of" not in columns:
+                db.execute("ALTER TABLE task_runs ADD COLUMN retry_of TEXT REFERENCES task_runs(id)")
+            if "cancel_requested_at" not in columns:
+                db.execute("ALTER TABLE task_runs ADD COLUMN cancel_requested_at TEXT")
 
     @contextmanager
     def _connect(self):
@@ -100,6 +115,8 @@ class ProjectStore:
             project = record.get("project")
             if not isinstance(project, dict) or project.get("name") != name or project.get("schemaVersion") != 1:
                 raise ValueError("Project configuration does not match its record")
+            validate_inventory_identities(project.get("sites", []))
+            validate_study(project.get("study"))
             if not isinstance(project.get("tasks"), list) or len(project["tasks"]) > 500:
                 raise ValueError("Invalid task list")
             if any(project.get(key) is not None and not isinstance(project[key], dict)
@@ -110,6 +127,8 @@ class ProjectStore:
                     (project.get("channel") or {}).get("execution") not in (None, "planned-not-executed")):
                 raise ValueError("Project cannot claim unverified runtime or execution")
             task_ids = set()
+            validate_drive_measurements(project.get("driveMeasurements"))
+            validate_measurement_library(project)
             for task in project["tasks"]:
                 if not isinstance(task, dict) or not isinstance(task.get("id"), str) or task["id"] in task_ids:
                     raise ValueError("Task IDs must be unique and valid")
@@ -171,6 +190,10 @@ class ProjectStore:
             current = meta["revision"] if meta else 0
             if current != expected_revision:
                 raise StoreConflict("Workspace changed in another browser tab; reload from the database")
+            saved = {row["id"]: json.loads(row["project_json"]) for row in db.execute("SELECT id,project_json FROM projects")}
+            for record in workspace["projects"]:
+                assert_study_transition(saved.get(record["id"], {}).get("study"), record["project"].get("study"))
+                assert_measurement_transition(saved.get(record["id"], {}).get("measurementLibrary"), record["project"].get("measurementLibrary"))
             keep_ids = [record["id"] for record in workspace["projects"]]
             db.execute(f"DELETE FROM projects WHERE id NOT IN ({','.join('?' for _ in keep_ids)})", keep_ids)
             for record in workspace["projects"]:
@@ -233,17 +256,76 @@ class ProjectStore:
             return dict(row) if row else None
 
     def create_run(self, run_id, project_id, kind, payload):
-        if not self.project_exists(project_id):
-            raise ValueError("Project not found")
         with self._connect() as db:
-            db.execute("INSERT INTO task_runs VALUES (?,?,?,?,?,?,?,?,?,?)",
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT project_json,status FROM projects WHERE id=?", (project_id,)).fetchone()
+            if not row:
+                raise ValueError("Project not found")
+            if row["status"] != "active":
+                raise ValueError("Archived projects cannot run path jobs")
+            try:
+                validate_run_capture(json.loads(row["project_json"]), payload)
+            except (KeyError, AttributeError, StopIteration, IndexError) as exc:
+                raise ValueError("Invalid captured engineering input shape") from exc
+            db.execute("INSERT INTO task_runs (id,project_id,task_id,kind,status,created_at,completed_at,input_json,result_json,error) VALUES (?,?,?,?,?,?,?,?,?,?)",
                        (run_id, project_id, None, kind, "queued", _now(), None, _json(payload), None, None))
+            self._run_event(db, run_id, "queued", "Frozen path request queued" if payload.get("runCapture") else "Legacy path request queued; input identity unavailable")
+
+    @staticmethod
+    def _run_event(db, run_id, status, detail):
+        sequence = db.execute("SELECT COALESCE(MAX(sequence),0)+1 FROM run_events WHERE run_id=?", (run_id,)).fetchone()[0]
+        db.execute("INSERT INTO run_events VALUES (?,?,?,?,?)", (run_id, sequence, _now(), status, detail[:500]))
+
+    def create_retry(self, run_id, project_id, parent_id):
+        from rt_worker import validate_job
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            project = db.execute("SELECT project_json,status FROM projects WHERE id=?", (project_id,)).fetchone()
+            parent = db.execute("SELECT * FROM task_runs WHERE id=?", (parent_id,)).fetchone()
+            if not project or not parent or parent["project_id"] != project_id:
+                raise ValueError("Retry parent is unavailable in this project")
+            if project["status"] != "active":
+                raise ValueError("Archived projects cannot retry path jobs")
+            if parent["kind"] != "sionna-rt" or parent["status"] not in ("failed", "interrupted", "cancelled"):
+                raise ValueError("Exact retry requires a failed, interrupted or cancelled terminal path run")
+            payload = json.loads(parent["input_json"])
+            validate_job(payload)
+            try:
+                validate_retry_capture(json.loads(project["project_json"]), payload)
+            except (KeyError, AttributeError, StopIteration, IndexError) as exc:
+                raise ValueError("Invalid retained frozen engineering input shape") from exc
+            db.execute("INSERT INTO task_runs (id,project_id,task_id,kind,status,created_at,input_json,retry_of) VALUES (?,?,?,?,?,?,?,?)",
+                       (run_id, project_id, parent["task_id"], parent["kind"], "queued", _now(), parent["input_json"], parent_id))
+            self._run_event(db, run_id, "queued", f"Exact-input retry of {parent_id}")
+            return payload
+
+    def _transition_run(self, db, run_id, status, result=None, error=None):
+        row = db.execute("SELECT * FROM task_runs WHERE id=?", (run_id,)).fetchone()
+        if not row:
+            raise ValueError("Run not found")
+        allowed = {"queued": {"running", "complete", "failed", "cancelling", "interrupted"},
+                   "running": {"complete", "failed", "cancelling", "interrupted"},
+                   "cancelling": {"cancelled", "failed", "interrupted"}}
+        if row["status"] not in allowed:
+            if status == row["status"] and row["result_json"] == (_json(result) if result is not None else None) and row["error"] == error:
+                return
+            raise ValueError("Terminal run evidence is immutable")
+        if status == row["status"]:
+            return
+        if status not in allowed[row["status"]]:
+            raise ValueError("Invalid run lifecycle transition")
+        when = _now()
+        db.execute("UPDATE task_runs SET status=?, completed_at=?, result_json=?, error=?, cancel_requested_at=? WHERE id=?",
+                   (status, when if status in ("complete", "failed", "cancelled", "interrupted") else None,
+                    _json(result) if result is not None else None, error,
+                    row["cancel_requested_at"] or (when if status == "cancelling" else None), run_id))
+        self._run_event(db, run_id, status, error or {"running": "Worker started", "cancelling": "Cancellation requested; awaiting worker exit",
+                                                   "cancelled": "Worker stopped; output discarded", "complete": "Worker completed"}.get(status, status))
 
     def update_run(self, run_id, status, result=None, error=None):
         with self._connect() as db:
-            db.execute("UPDATE task_runs SET status=?, completed_at=?, result_json=?, error=? WHERE id=?",
-                       (status, _now() if status in ("complete", "failed", "interrupted") else None,
-                        _json(result) if result is not None else None, error, run_id))
+            db.execute("BEGIN IMMEDIATE")
+            self._transition_run(db, run_id, status, result, error)
 
     def get_run(self, run_id):
         with self._connect() as db:
@@ -254,7 +336,9 @@ class ProjectStore:
                     "kind": row["kind"], "status": row["status"], "createdAt": row["created_at"],
                     "completedAt": row["completed_at"], "input": json.loads(row["input_json"]),
                     "result": json.loads(row["result_json"]) if row["result_json"] else None,
-                    "error": row["error"]}
+                    "error": row["error"], "retryOf": row["retry_of"], "cancelRequestedAt": row["cancel_requested_at"],
+                    "events": [{"sequence": item["sequence"], "when": item["happened_at"], "status": item["status"], "detail": item["detail"]}
+                               for item in db.execute("SELECT * FROM run_events WHERE run_id=? ORDER BY sequence", (run_id,))]}
 
     def count_runs(self, project_id):
         with self._connect() as db:
@@ -265,17 +349,18 @@ class ProjectStore:
             if not db.execute("SELECT 1 FROM projects WHERE id=?", (project_id,)).fetchone():
                 return None
             rows = db.execute("""SELECT id, project_id AS projectId, task_id AS taskId, kind, status,
-                created_at AS createdAt, completed_at AS completedAt, result_json, error
+                created_at AS createdAt, completed_at AS completedAt, result_json, error, retry_of, cancel_requested_at
                 FROM task_runs WHERE project_id=? ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?""",
                 (project_id, limit, offset))
             return [{"id": row["id"], "projectId": row["projectId"], "taskId": row["taskId"],
                      "kind": row["kind"], "status": row["status"], "createdAt": row["createdAt"],
                      "completedAt": row["completedAt"], "totalPaths":
                      (json.loads(row["result_json"]).get("totalPaths") if row["result_json"] else None),
-                     "error": row["error"]} for row in rows]
+                     "error": row["error"], "retryOf": row["retry_of"], "cancelRequestedAt": row["cancel_requested_at"]} for row in rows]
 
     def interrupt_incomplete_runs(self):
         with self._connect() as db:
-            db.execute("UPDATE task_runs SET status='interrupted', completed_at=?, error=? "
-                       "WHERE status IN ('queued','running')",
-                       (_now(), "Server stopped before this run completed"))
+            db.execute("BEGIN IMMEDIATE")
+            rows = db.execute("SELECT id FROM task_runs WHERE status IN ('queued','running','cancelling')").fetchall()
+            for row in rows:
+                self._transition_run(db, row["id"], "interrupted", error="Server stopped before this run completed; worker outcome is unknown")

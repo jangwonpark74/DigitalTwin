@@ -1,0 +1,18 @@
+.measurement-identity-review { margin-top: 18px; padding: 20px; border: 1px solid #bed0b7; border-radius: 8px; background: #f6f9f3; }
+.measurement-identity-review h3 { margin-top: 0; }
+.measurement-identity-search { display: grid; gap: 7px; margin: 18px 0; font-size: 12px; font-weight: 600; }
+.measurement-identity-review input, .measurement-identity-review select { box-sizing: border-box; width: 100%; min-width: 0; min-height: 42px; padding: 9px; border: 1px solid #b7cbb0; border-radius: 5px; background: white; color: #294537; font: inherit; }
+.measurement-identity-review :is(input, select, button):focus-visible, .measurement-cell-association button:focus-visible { outline: 3px solid #287260; outline-offset: 3px; }
+.measurement-identity-rows { display: grid; gap: 12px; }
+.measurement-identity-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 18px; padding: 12px 0; border-top: 1px solid #dce5d6; }
+.measurement-identity-row > div, .measurement-identity-row label { display: grid; align-content: center; gap: 7px; min-width: 0; overflow-wrap: anywhere; font-size: 12px; }
+.measurement-identity-row small { color: #526b5c; font-size: 11px; }
+.measurement-identity-pagination { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 16px 0; font-size: 11px; }
+.measurement-identity-pagination button, .measurement-cell-association button { min-height: 40px; padding: 8px 10px; border: 1px solid #adc6a5; border-radius: 5px; background: #fff; color: #31533d; font: inherit; cursor: pointer; }
+.measurement-identity-pagination button:disabled { opacity: .5; cursor: default; }
+.measurement-cell-association { min-width: 0; margin: 12px 0; display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid #dce5d6; font-size: 12px; overflow-wrap: anywhere; }
+.measurement-cell-association p { margin: 0; font-weight: 600; color: #31533d; }
+.measurement-cell-association small { color: #526b5c; }
+.measurement-cell-association button { justify-self: start; font-size: 11px; }
+.rt-drive-inspector .measurement-cell-association { flex: 0 1 210px; margin: 0; border: 0; padding: 0; }
+@media (max-width: 600px) { .measurement-identity-review { padding: 14px; }.measurement-identity-row { grid-template-columns: minmax(0, 1fr); gap: 10px; }.measurement-cell-association button { min-height: 44px; }.rt-drive-inspector .measurement-cell-association { flex-basis: 100%; } }

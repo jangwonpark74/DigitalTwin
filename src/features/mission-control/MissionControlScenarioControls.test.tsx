@@ -45,7 +45,7 @@ describe('Mission Control scenario controls (not yet routed)', () => {
       if (path === 'ue.count' && value === '50001') throw new Error('Invalid UE count');
     });
     const { rerender } = render(<MissionControlScenarioControls state={scenario()} onSelectPreset={select} onChangeAssumption={change} />);
-    expect(screen.getByRole('button', { name: 'Baseline' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Default assumptions' }).getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByRole('slider', { name: 'Blockage assumption' }).getAttribute('value')).toBe('12');
     expect(screen.getByRole('spinbutton', { name: 'Virtual UE count' }).getAttribute('value')).toBe('1200');
     await user.click(screen.getByRole('button', { name: 'UE density surge' }));
@@ -118,7 +118,7 @@ describe('Mission Control scenario controls (not yet routed)', () => {
     expect(api.write).toHaveBeenCalledTimes(2);
     await controller.dispatch(next => activateWorkspaceProject(next, other.id) as WorkspaceSnapshot);
     await waitFor(() => expect(screen.getByRole('slider', { name: 'Blockage assumption' }).getAttribute('value')).toBe('12'));
-    expect(screen.getByRole('button', { name: 'Baseline' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Default assumptions' }).getAttribute('aria-pressed')).toBe('true');
     expect(screen.queryByRole('alert')).toBeNull();
     expect(controller.getSnapshot().workspace?.projects[1].activity).toHaveLength(0);
   });

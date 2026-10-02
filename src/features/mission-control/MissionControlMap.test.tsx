@@ -36,7 +36,7 @@ describe('Mission Control map and selected-site presentation (not yet routed)', 
     expect(onSelect).toHaveBeenCalledWith('SITE-03');
     await user.click(screen.getByRole('button', { name: /Configure radio location/i }));
     await user.click(screen.getByRole('button', { name: /Configure site & cells/i }));
-    expect(onNavigate.mock.calls).toEqual([['radio'], ['planner']]);
+    expect(onNavigate.mock.calls).toEqual([['site-position'], ['planner']]);
     expect(container.querySelector('polygon')).toBeNull();
     const other = structuredClone(selected);
     other.id = '22222222-2222-4222-8222-222222222222';

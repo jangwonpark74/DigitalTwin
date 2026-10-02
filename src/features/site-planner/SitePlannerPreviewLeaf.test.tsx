@@ -24,7 +24,8 @@ beforeEach(() => {
   });
 });
 
-async function setup(sceneLoader?: SceneLoader) {
+const mockSceneLoader: SceneLoader = async () => () => ({ update: vi.fn(), setCamera: vi.fn(), destroy: vi.fn() });
+async function setup(sceneLoader: SceneLoader = mockSceneLoader) {
   const api = {
     read: vi.fn().mockResolvedValue({ revision: 0, workspace: initialWorkspace }),
     write: vi.fn().mockImplementation(async (_workspace: unknown, revision: number) => revision + 1),
@@ -34,22 +35,77 @@ async function setup(sceneLoader?: SceneLoader) {
   const record = controller.getSnapshot().workspace!.projects[0];
   const session = new SitePlannerSession(record.id, record.project as unknown as { sites: { id: string; cells: { id: string }[] }[] });
   const view = render(<SitePlannerPreviewLeaf controller={controller} record={record} session={session}
-    onError={vi.fn()} onNavigate={vi.fn()} {...(sceneLoader ? { sceneLoader } : {})} />);
+    onError={vi.fn()} onNavigate={vi.fn()} sceneLoader={sceneLoader} />);
   return { api, controller, session, view };
 }
 
 describe('SitePlannerPreviewLeaf', () => {
-  it('loads the 3D scene only on request and keeps an accessible site and sector alternative', async () => {
+  it('restores a cleared required sector value instead of saving it as zero', async () => {
+    const { api, controller } = await setup();
+    fireEvent.click(screen.getByRole('tab', { name: /SITE-01-C2/ }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Antenna' }));
+    const azimuth = screen.getByLabelText('Azimuth (°)') as HTMLInputElement;
+    const original = activeProject(controller).sites[0].cells[1].azimuthDeg;
+    fireEvent.change(azimuth, { target: { value: '' } }); fireEvent.blur(azimuth);
+    expect((await screen.findByRole('alert')).textContent).toContain('requires a number');
+    expect(azimuth.value).toBe(String(original));
+    expect(api.write).not.toHaveBeenCalled();
+    fireEvent.change(azimuth, { target: { value: '0' } }); fireEvent.blur(azimuth);
+    await waitFor(() => expect(activeProject(controller).sites[0].cells[1].azimuthDeg).toBe(0));
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+  });
+  it('uses one inspector for position, radio, antenna and topology without changing the selected sector', async () => {
+    const { controller, session } = await setup();
+    expect(screen.getByRole('heading', { name: 'Sites and Cells' })).toBeTruthy();
+    const tabs = screen.getByRole('tablist', { name: 'Site inspector' });
+    expect(within(tabs).getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Summary', 'Position', 'RF', 'Antenna', 'Topology']);
+    fireEvent.click(screen.getByRole('tab', { name: /SITE-01-C2/ }));
+    fireEvent.click(within(tabs).getByRole('tab', { name: 'Position' }));
+    const center = controller.getSnapshot().workspace!.projects[0].project.map as { latitude: number; longitude: number };
+    const targetLongitude = center.longitude + .0001;
+    const latitude = screen.getByLabelText('Latitude');
+    fireEvent.change(latitude, { target: { value: String(center.latitude) } }); fireEvent.blur(latitude);
+    const longitude = screen.getByLabelText('Longitude');
+    fireEvent.change(longitude, { target: { value: String(targetLongitude) } }); fireEvent.blur(longitude);
+    await waitFor(() => expect((activeProject(controller).sites[0] as unknown as { radioLocation: { longitude: number } }).radioLocation.longitude).toBe(targetLongitude));
+    const position = within(tabs).getByRole('tab', { name: 'Position' });
+    position.focus();
+    fireEvent.keyDown(position, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(within(tabs).getByRole('tab', { name: 'RF' }));
+    expect(screen.getByLabelText('RU model / part number')).toBeTruthy();
+    expect(screen.queryByLabelText('Latitude')).toBeNull();
+    fireEvent.click(within(tabs).getByRole('tab', { name: 'Antenna' }));
+    expect(screen.getByLabelText('Azimuth (°)')).toBeTruthy();
+    expect(session.getSnapshot().selectedCellId).toBe('SITE-01-C2');
+    fireEvent.keyDown(within(tabs).getByRole('tab', { name: 'Antenna' }), { key: 'End' });
+    expect(document.activeElement).toBe(within(tabs).getByRole('tab', { name: 'Topology' }));
+    expect(screen.getByText(/Topology relationships remain unverified/)).toBeTruthy();
+  });
+  it('opens the geographic map in 2D and keeps an accessible site and sector inventory in 3D', async () => {
     const sceneLoader = vi.fn(async () => () => ({ update: vi.fn(), setCamera: vi.fn(), destroy: vi.fn() }));
     const { session } = await setup(sceneLoader);
-    expect(sceneLoader).not.toHaveBeenCalled();
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Open 3D RF scene' }));
     await waitFor(() => expect(sceneLoader).toHaveBeenCalledTimes(1));
-    const alternative = screen.getByRole('region', { name: '3D scene site and sector list' });
+    expect(screen.getByRole('button', { name: '2D map' }).getAttribute('aria-pressed')).toBe('true');
+    await userEvent.setup().click(screen.getByRole('button', { name: '3D scene' }));
+    const alternative = screen.getByRole('complementary', { name: '3D scene site and sector list' });
     expect(alternative.textContent).toContain('Geographic coordinates not set');
     expect(alternative.textContent).toContain('SITE-01-C1 0° sector');
     await userEvent.setup().click(within(alternative).getByRole('button', { name: /SITE-02/ }));
     expect(session.getSnapshot().selectedSiteId).toBe('SITE-02');
+  });
+
+  it('searches and filters site inventory without altering project configuration', async () => {
+    const { api, controller } = await setup();
+    const before = structuredClone(activeProject(controller));
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search sites' }), { target: { value: 'River' } });
+    const list = screen.getByRole('group', { name: 'Select a site' });
+    expect(within(list).getAllByRole('button')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Positioned' }));
+    expect(within(list).getByText('No sites match these filters.')).toBeTruthy();
+    fireEvent.click(within(list).getByRole('button', { name: 'Clear filters' }));
+    expect(within(list).getAllByRole('button')).toHaveLength(3);
+    expect(activeProject(controller)).toEqual(before);
+    expect(api.write).not.toHaveBeenCalled();
   });
 
   it('selects a site and cell, persists validated edits, and adds a domain-default site', async () => {
@@ -73,6 +129,7 @@ describe('SitePlannerPreviewLeaf', () => {
     await user.click(within(planner).getByRole('tab', { name: /SITE-02-C2/ }));
     expect(session.getSnapshot().selectedCellId).toBe('SITE-02-C2');
 
+    await user.click(within(planner).getByRole('tab', { name: 'Antenna' }));
     const azimuth = within(planner).getByLabelText('Azimuth (°)');
     await user.clear(azimuth);
     await user.type(azimuth, '221');
@@ -101,6 +158,7 @@ describe('SitePlannerPreviewLeaf', () => {
     fireEvent.click(within(planner).getByRole('button', { name: 'Select River Bridge site SITE-02' }));
     expect((screen.getByLabelText('Site name') as HTMLInputElement).value).toBe('River Bridge');
 
+    fireEvent.click(within(planner).getByRole('tab', { name: 'Position' }));
     const height = within(planner).getByLabelText('Height (m)');
     fireEvent.change(height, { target: { value: '0' } });
     fireEvent.blur(height);

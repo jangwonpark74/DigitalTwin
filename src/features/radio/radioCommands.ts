@@ -70,3 +70,22 @@ export function placeRadioOnMap(controller: AppController, projectId: string, si
     { title: 'Radio location placed on map',
       detail: `${siteId} · ${coordinates.latitude.toFixed(6)}, ${coordinates.longitude.toFixed(6)}` }) as WorkspaceSnapshot));
 }
+
+/** A click on the geographic basemap supplies WGS84 coordinates directly. */
+export function placeRadioAtCoordinates(controller: AppController, projectId: string, siteId: string,
+  coordinates: { latitude: number; longitude: number }): Promise<void> | null {
+  const state = controller.getSnapshot().workspace;
+  if (!state) return null;
+  if (state.activeProjectId !== projectId) throw new Error('Radio project changed; select the active project before retrying.');
+  const record = state.projects.find(item => item.id === projectId);
+  if (!record || !(record.project.sites as Site[]).some(site => site.id === siteId)) return null;
+  if (!Number.isFinite(coordinates.latitude) || !Number.isFinite(coordinates.longitude) ||
+    Math.abs(coordinates.latitude) > 85.051129 || Math.abs(coordinates.longitude) > 180) throw new Error('Enter valid WGS84 map coordinates.');
+  const save = controller.dispatch(workspace => updateWorkspaceProject(workspace, projectId, (draft: EditableProject) => {
+    const site = draft.sites.find(item => item.id === siteId)!;
+    Object.assign(site, geoToMapPercent(draft.map, coordinates.latitude, coordinates.longitude));
+    site.radioLocation = { ...coordinates, source: 'manual' };
+  }) as WorkspaceSnapshot);
+  return save.then(() => controller.dispatch(workspace => appendWorkspaceLog(workspace, projectId,
+    { title: 'Radio location placed on map', detail: `${siteId} · ${coordinates.latitude.toFixed(6)}, ${coordinates.longitude.toFixed(6)} · WGS84 map selection` }) as WorkspaceSnapshot));
+}

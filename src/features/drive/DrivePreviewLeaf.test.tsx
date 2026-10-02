@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createWorkspaceState } from '../../../workspaces.mjs';
 import { AppController } from '../../app/AppController';
 import { workspaceSchema } from '../../api/schemas';
@@ -20,6 +20,38 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('DrivePreviewLeaf', () => {
+  it('updates the chart category, physical unit, exact axes and cursor with the selected metric and filter', async () => {
+    const controller = new AppController({ read: vi.fn().mockResolvedValue({ revision: 2, workspace }),
+      write: vi.fn().mockImplementation(async (_draft: unknown, revision: number) => revision + 1) });
+    await controller.hydrate();
+    const view = render(<DrivePreviewLeaf controller={controller} record={controller.getSnapshot().workspace!.projects[0]} onError={vi.fn()} />);
+    const metric = screen.getByRole('combobox', { name: 'Color route by' });
+    for (const [value, label, category, unit, threshold] of [
+      ['rsrp', 'RSRP / SS-RSRP', 'Signal power', 'dBm', '-110'],
+      ['rsrq', 'RSRQ / SS-RSRQ', 'Signal quality', 'dB', '-15'],
+      ['sinr', 'SINR / SS-SINR', 'Signal quality', 'dB', '0'],
+      ['dl', 'DL throughput', 'Downlink throughput', 'Mbps', '5'],
+      ['ul', 'UL throughput', 'Uplink throughput', 'Mbps', '2'],
+    ]) {
+      fireEvent.change(metric, { target: { value } });
+      const chart = screen.getByRole('img', { name: new RegExp(`${label} trend by sample number`) });
+      const panel = within(chart.parentElement!);
+      expect(panel.getByText(`KPI category · ${category}`)).toBeTruthy();
+      expect(panel.getByText(`Example weak threshold: ${threshold} ${unit}`)).toBeTruthy();
+      expect(panel.getByText(new RegExp(`Scale .+ ${unit} · .+ ${unit} / division`))).toBeTruthy();
+      expect(chart.querySelector('.dm-trend-y-ticks text')?.textContent).toMatch(/^-?\d+$/);
+      expect(chart.getAttribute('preserveAspectRatio')).toBe('xMinYMid meet');
+    }
+    const slider = screen.getByRole('slider', { name: 'DM trace sample' });
+    fireEvent.change(slider, { target: { value: '47' } });
+    expect(view.container.querySelector('#dm-trend-cursor')?.getAttribute('x1')).toBe('920');
+    fireEvent.change(screen.getByRole('combobox', { name: 'Radio access' }), { target: { value: 'LTE' } });
+    const ticks = view.container.querySelectorAll('.dm-trend-x-ticks text');
+    expect(ticks[0].textContent).toBe('1');
+    expect(slider.getAttribute('max')).toBe('15');
+    expect(ticks[ticks.length - 1].textContent).toBe('16');
+  });
+
   it('keeps the focused route setting mounted while persisting edits under StrictMode', async () => {
     const api = {
       read: vi.fn().mockResolvedValue({ revision: 2, workspace }),

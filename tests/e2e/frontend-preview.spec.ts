@@ -1,3 +1,4 @@
+import { clickWorkspaceButton } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import { createWorkspaceState } from '../../workspaces.mjs';
 
@@ -36,14 +37,18 @@ test('the root serves the React workspace and project lifecycle stays scoped and
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') errors.push(`console: ${message.text()}`); });
-  page.on('requestfailed', request => errors.push(`request failed: ${request.url()} · ${request.failure()?.errorText}`));
+  page.on('requestfailed', request => {
+    // Leaving a map destroys its viewer and deliberately cancels outstanding tile requests.
+    if (request.url().startsWith('https://tiles.openfreemap.org/') && request.failure()?.errorText === 'net::ERR_ABORTED') return;
+    errors.push(`request failed: ${request.url()} · ${request.failure()?.errorText}`);
+  });
   await stubWorkspaceApi(page);
   await page.goto('/');
 
   expect(errors).toEqual([]);
   await expect(page.getByRole('region', { name: 'Active project context' })).toContainText('RAN Twin · City Pilot');
   await expect(page.getByRole('navigation', { name: 'Application workspaces' })).toBeVisible();
-  await page.getByRole('button', { name: 'Projects' }).click();
+  await clickWorkspaceButton(page, 'Projects');
   await expect(page.getByRole('heading', { name: 'Twin Workspace projects' })).toBeVisible();
 
   await page.getByLabel('Project name', { exact: true }).fill('Seoul CBD pilot');
@@ -52,12 +57,12 @@ test('the root serves the React workspace and project lifecycle stays scoped and
   await page.getByRole('button', { name: 'Create project' }).click();
   await expect(page.getByRole('region', { name: 'Active project context' })).toContainText('Seoul CBD pilot');
 
-  await page.getByRole('button', { name: 'Projects' }).click();
+  await clickWorkspaceButton(page, 'Projects');
   const original = page.locator('.project-card').filter({ hasText: 'RAN Twin · City Pilot' });
   await original.getByRole('button', { name: 'Open project' }).click();
   await expect(page.getByRole('region', { name: 'Active project context' })).toContainText('RAN Twin · City Pilot');
 
-  await page.getByRole('button', { name: 'Projects' }).click();
+  await clickWorkspaceButton(page, 'Projects');
   const pilot = page.locator('.project-card').filter({ hasText: 'Seoul CBD pilot' });
   await pilot.getByText('Rename', { exact: true }).click();
   await pilot.locator('details input').fill('Seoul CBD phase 2');

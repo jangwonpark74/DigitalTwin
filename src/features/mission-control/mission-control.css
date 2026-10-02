@@ -128,3 +128,11 @@
   .mission-control-map-placement label,
   .mission-control-map-placement button { width: 100%; }
 }
+
+.mission-control-project-map-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: 0 1rem 1rem; }
+.mission-control-project-map-controls button { min-height: 2.5rem; padding: .5rem .75rem; border: 1px solid #c6d8de; border-radius: .45rem; background: #fff; color: #176f87; cursor: pointer; }
+.mission-control-project-map-controls button[aria-pressed="true"] { background: #e4f5ee; border-color: #0a775f; color: #0a775f; }
+.mission-control-project-map-controls button:focus-visible { outline: 3px solid #1984a8; outline-offset: 3px; }
+.mission-control-project-map-controls label { display: flex; align-items: center; gap: .35rem; font-size: .84rem; }
+.mission-control-project-map .open-rf-scene { border-radius: 0; }
+.mission-control-project-map-note { padding: 0 1rem 1rem; color: #607784; font-size: .84rem; line-height: 1.5; }

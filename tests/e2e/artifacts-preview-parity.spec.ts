@@ -1,3 +1,4 @@
+import { clickWorkspaceButton } from './navigation';
 import { expect, test } from '@playwright/test';
 import type { ChildProcess } from 'node:child_process';
 import { spawnPython, runToolSync } from '../../scripts/runtime.mjs';
@@ -49,7 +50,7 @@ test('built artifact browser edits project JSON and shares the saved file with t
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(`${origin}/frontend-preview.html`);
     await page.getByRole('button', { name: 'Preview activity route' }).click();
-    await page.getByRole('button', { name: 'Project artifacts' }).click();
+    await clickWorkspaceButton(page, 'Project artifacts');
     const artifacts = page.getByRole('region', { name: 'Project artifacts preview' });
     await expect(artifacts.getByRole('heading', { name: 'Project artifacts' })).toBeVisible();
     await artifacts.getByRole('button', { name: 'project.json' }).click();
@@ -90,10 +91,10 @@ test('built artifact browser edits project JSON and shares the saved file with t
     expect(imported.project.management.hardware.every((asset: { discovery: string }) => asset.discovery === 'not-discovered')).toBe(true);
 
     await page.goto(`${origin}/`);
-    await page.getByRole('button', { name: 'Projects' }).click();
+    await clickWorkspaceButton(page, 'Projects');
     const originalProject = page.locator('.project-card').filter({ hasText: 'RAN Twin · City Pilot' });
     await originalProject.getByRole('button', { name: 'Open project' }).click();
-    await page.getByRole('button', { name: 'Project artifacts' }).click();
+    await clickWorkspaceButton(page, 'Project artifacts');
     const rootArtifacts = page.getByRole('region', { name: 'Project artifacts preview' });
     await rootArtifacts.getByRole('button', { name: 'project.json' }).click();
     await expect(rootArtifacts.getByRole('article', { name: 'Selected artifact' })).toContainText('https://core.example.test');

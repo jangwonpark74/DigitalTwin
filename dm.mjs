@@ -1,10 +1,10 @@
 // 4G/5G drive-measurement view-models. Demo numbers are illustrations, never RF results.
 export const DM_METRICS = Object.freeze({
-  rsrp:{label:'RSRP / SS-RSRP',unit:'dBm',key:'rsrpDbm',poor:-110,good:-95},
-  rsrq:{label:'RSRQ / SS-RSRQ',unit:'dB',key:'rsrqDb',poor:-15,good:-10},
-  sinr:{label:'SINR / SS-SINR',unit:'dB',key:'sinrDb',poor:0,good:13},
-  dl:{label:'DL throughput',unit:'Mbps',key:'dlMbps',poor:5,good:20},
-  ul:{label:'UL throughput',unit:'Mbps',key:'ulMbps',poor:2,good:8},
+  rsrp:{label:'RSRP / SS-RSRP',category:'Signal power',unit:'dBm',key:'rsrpDbm',poor:-110,good:-95},
+  rsrq:{label:'RSRQ / SS-RSRQ',category:'Signal quality',unit:'dB',key:'rsrqDb',poor:-15,good:-10},
+  sinr:{label:'SINR / SS-SINR',category:'Signal quality',unit:'dB',key:'sinrDb',poor:0,good:13},
+  dl:{label:'DL throughput',category:'Downlink throughput',unit:'Mbps',key:'dlMbps',poor:5,good:20},
+  ul:{label:'UL throughput',category:'Uplink throughput',unit:'Mbps',key:'ulMbps',poor:2,good:8},
 });
 const round=(x,d=1)=>Number(x.toFixed(d));
 const clamp=(x,min,max)=>Math.max(min,Math.min(max,x));
@@ -54,43 +54,87 @@ function readCsv(text) {
   row.push(field.replace(/\r$/,''));if(row.some(v=>v.trim())) rows.push(row);
   return rows;
 }
-function numberField(record,name,min,max,row) {
+export const DM_CSV_FIELDS = Object.freeze({
+  time_s: { label: 'Elapsed time', units: ['s', 'ms'], required: true },
+  technology: { label: 'Radio technology', units: [null], required: true },
+  serving_cell: { label: 'Serving cell', units: [null], required: true },
+  latitude: { label: 'Latitude', units: ['degrees'], required: true },
+  longitude: { label: 'Longitude', units: ['degrees'], required: true },
+  rsrp_dbm: { label: 'RSRP / SS-RSRP', units: ['dBm'], required: false },
+  rsrq_db: { label: 'RSRQ / SS-RSRQ', units: ['dB'], required: false },
+  sinr_db: { label: 'SINR / SS-SINR', units: ['dB'], required: false },
+  dl_mbps: { label: 'DL throughput', units: ['Mbps', 'kbps', 'bps'], required: false },
+  ul_mbps: { label: 'UL throughput', units: ['Mbps', 'kbps', 'bps'], required: false },
+  event: { label: 'Event annotation', units: [null], required: false },
+  x_pct: { label: 'Schematic X', units: ['percent'], required: false },
+  y_pct: { label: 'Schematic Y', units: ['percent'], required: false },
+});
+function csvHeader(rows) {
+  if (!rows.length) throw new Error('DM CSV requires a header');
+  const header = rows[0].map((h, i) => (i === 0 ? h.replace(/^\uFEFF/, '') : h).trim());
+  if (new Set(header).size !== header.length) throw new Error('Duplicate DM CSV columns');
+  if (header.length > 512 || header.some(h => !h || h.length > 120 || /[\x00-\x1f]/.test(h))) throw new Error('CSV requires 1–512 nonempty column names of at most 120 characters');
+  return header;
+}
+export function inspectDmCsv(text) {
+  const rows = readCsv(text), headers = csvHeader(rows);
+  return { headers, rowCount: rows.length - 1, mapping: Object.fromEntries(Object.entries(DM_CSV_FIELDS)
+    .map(([field, spec]) => [field, { column: headers.includes(field) ? field : null, unit: spec.units[0] }])) };
+}
+export function validateDmCsvMapping(mapping, headers) {
+  if (!mapping || Object.keys(mapping).length !== Object.keys(DM_CSV_FIELDS).length || Object.keys(mapping).some(k => !Object.hasOwn(DM_CSV_FIELDS, k))) throw new Error('Invalid CSV field mapping');
+  const used = new Set();
+  for (const [field, spec] of Object.entries(DM_CSV_FIELDS)) {
+    const entry = mapping[field];
+    if (!entry || Object.keys(entry).length !== 2 || !Object.hasOwn(entry, 'column') || !Object.hasOwn(entry, 'unit')
+      || !spec.units.includes(entry.unit)) throw new Error(`Invalid unit or mapping for ${field}`);
+    if (entry.column !== null) {
+      if (typeof entry.column !== 'string' || !headers.includes(entry.column)) throw new Error(`Unknown source column for ${field}`);
+      if (used.has(entry.column)) throw new Error(`Source column ${entry.column} is mapped more than once`);
+      used.add(entry.column);
+    }
+  }
+}
+function numberField(record,name,min,max,row,factor=1,nullable=false) {
   const raw=record[name]?.trim();
-  if(!raw || !/^-?(?:\d+\.?\d*|\.\d+)$/.test(raw)) throw new Error(`Row ${row}: invalid ${name}`);
-  const value=Number(raw);
+  if(nullable && (raw == null || ['', 'NA', 'N/A', 'NULL'].includes(raw.toUpperCase()))) return null;
+  if(!raw || !/^-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(raw)) throw new Error(`Row ${row}: invalid ${name}`);
+  const value=Number(raw)*factor;
   if(!Number.isFinite(value)||value<min||value>max) throw new Error(`Row ${row}: ${name} outside ${min}–${max}`);
   return value;
 }
-export function parseDmCsv(text) {
+export function parseDmCsv(text,{mapping}={}) {
   const rows=readCsv(text);
-  if(!rows.length) throw new Error('DM CSV requires a header');
-  const header=rows.shift().map((h,i)=>i===0?h.replace(/^\uFEFF/,'').trim():h.trim());
-  if(new Set(header).size!==header.length) throw new Error('Duplicate DM CSV columns');
-  const required=['time_s','technology','serving_cell','rsrp_dbm','rsrq_db','sinr_db','dl_mbps','ul_mbps'];
-  const missing=required.filter(k=>!header.includes(k));
+  const header=csvHeader(rows); rows.shift();
+  mapping = mapping ?? Object.fromEntries(Object.entries(DM_CSV_FIELDS).map(([field,spec]) => [field,{column:header.includes(field)?field:null,unit:spec.units[0]}]));
+  validateDmCsvMapping(mapping,header);
+  const required=['time_s','technology','serving_cell'];
+  const missing=required.filter(k=>mapping[k].column === null);
   if(missing.length) throw new Error(`Missing columns: ${missing.join(', ')}`);
-  const schematic=['x_pct','y_pct'].every(k=>header.includes(k));
-  const gps=['latitude','longitude'].every(k=>header.includes(k));
+  const schematic=['x_pct','y_pct'].every(k=>mapping[k].column !== null);
+  const gps=['latitude','longitude'].every(k=>mapping[k].column !== null);
   if(!schematic && !gps) throw new Error('Missing columns: x_pct/y_pct or latitude/longitude');
   if(rows.length<2) throw new Error('DM CSV requires at least two samples');
   if(rows.length>5000) throw new Error('CSV exceeds 5,000 samples');
   const samples=rows.map((values,i)=>{
     const row=i+2;
     if(values.length!==header.length) throw new Error(`Row ${row}: column count mismatch`);
-    const r=Object.fromEntries(header.map((k,j)=>[k,values[j]]));
+    const source=Object.fromEntries(header.map((k,j)=>[k,values[j]]));
+    const r=Object.fromEntries(Object.entries(mapping).map(([k,entry])=>[k,entry.column===null?undefined:source[entry.column]]));
     const technology=({LTE:'LTE','4G':'LTE',NR:'NR','5G':'NR'})[r.technology?.trim().toUpperCase()];
     if(!technology) throw new Error(`Row ${row}: technology must be LTE/4G or NR/5G`);
     const servingCell=r.serving_cell?.trim();
     if(!/^[A-Za-z0-9._:/-]{1,60}$/.test(servingCell)) throw new Error(`Row ${row}: invalid serving_cell`);
     const event=(r.event||'').trim();
     if(event.length>60 || /[<>\u0000-\u001f]/.test(event)) throw new Error(`Row ${row}: invalid event`);
-    return {index:i,timeS:numberField(r,'time_s',0,604800,row),technology,servingCell,
+    const factor = key => ({ ms: .001, kbps: .001, bps: .000001 }[mapping[key].unit] ?? 1);
+    return {index:i,timeS:numberField(r,'time_s',0,604800,row,factor('time_s')),technology,servingCell,
       x:schematic?numberField(r,'x_pct',0,100,row):null,
       y:schematic?numberField(r,'y_pct',0,100,row):null,
       ...(gps?{latitude:numberField(r,'latitude',-90,90,row),longitude:numberField(r,'longitude',-180,180,row)}:{}),
-      rsrpDbm:numberField(r,'rsrp_dbm',-160,-40,row),rsrqDb:numberField(r,'rsrq_db',-40,0,row),
-      sinrDb:numberField(r,'sinr_db',-30,60,row),dlMbps:numberField(r,'dl_mbps',0,10000,row),
-      ulMbps:numberField(r,'ul_mbps',0,10000,row),event,provenance:'imported-unverified'};
+      rsrpDbm:numberField(r,'rsrp_dbm',-160,-40,row,1,true),rsrqDb:numberField(r,'rsrq_db',-40,0,row,1,true),
+      sinrDb:numberField(r,'sinr_db',-30,60,row,1,true),dlMbps:numberField(r,'dl_mbps',0,10000,row,factor('dl_mbps'),true),
+      ulMbps:numberField(r,'ul_mbps',0,10000,row,factor('ul_mbps'),true),event,provenance:'imported-unverified'};
   });
   for(let i=1;i<samples.length;i++) if(samples[i].timeS<samples[i-1].timeS) throw new Error(`Row ${i+2}: time_s must be nondecreasing`);
   if(!schematic) {
@@ -101,7 +145,7 @@ export function parseDmCsv(text) {
       sample.y=round(90-80*(sample.latitude-loLat)/(hiLat-loLat||1),2);
     }
   }
-  return {source:'imported-unverified',coordinateMode:schematic?'schematic':'gps-normalized-schematic',samples};
+  return {schemaVersion:2,source:'imported-unverified',coordinateMode:schematic?'schematic':'gps-normalized-schematic',mapping:structuredClone(mapping),samples};
 }
 function percentile(values,p) {
   const sorted=[...values].sort((a,b)=>a-b);
@@ -112,17 +156,17 @@ export function analyzeDmTrace(samples,{technology='ALL',metric='rsrp'}={}) {
   if(!Object.hasOwn(DM_METRICS,metric)) throw new Error('Unknown DM metric');
   if(!['ALL','LTE','NR'].includes(technology)) throw new Error('Unknown radio technology');
   const spec=DM_METRICS[metric], filtered=samples.filter(s=>technology==='ALL'||s.technology===technology);
-  const values=filtered.map(s=>s[spec.key]),weakZones=[];
+  const values=filtered.map(s=>s[spec.key]).filter(Number.isFinite),weakZones=[];
   let open=null,weakCount=0;
   for(const sample of filtered) {
-    if(sample[spec.key]<spec.poor) {
+    if(Number.isFinite(sample[spec.key]) && sample[spec.key]<spec.poor) {
       weakCount++;
       if(!open || sample.index!==open.end+1) {open={start:sample.index,end:sample.index};weakZones.push(open);}
       else open.end=sample.index;
     } else open=null;
   }
   const events=filtered.filter(s=>s.event);
-  return {metric,technology,filtered,sampleCount:filtered.length,
+  return {metric,technology,filtered,sampleCount:filtered.length,validCount:values.length,missingCount:filtered.length-values.length,
     techCounts:{LTE:filtered.filter(s=>s.technology==='LTE').length,NR:filtered.filter(s=>s.technology==='NR').length},
     average:values.length?round(values.reduce((a,b)=>a+b,0)/values.length):null,
     p10:values.length?percentile(values,.1):null,p90:values.length?percentile(values,.9):null,
@@ -138,6 +182,8 @@ export function buildDmAnalysisReport(trace,{technology='ALL',metric='rsrp',file
   return {schemaVersion:1,kind:'4G-5G-DM-ANALYSIS',source:trace.source,
     provenance:trace.source==='synthetic-demo'?'illustrative-not-measured':'imported-unverified',
     filename:filename||null,coordinateMode:trace.coordinateMode,filters:{technology,metric},
+    ...(trace.evidence ? {dataset:Object.fromEntries(Object.entries(trace.evidence).filter(([key])=>key!=='rawCsv'))} : {}),
+    ...(trace.cellIdentity ? {cellIdentity:structuredClone(trace.cellIdentity)} : {}),
     summary,events:events.map(s=>({sampleIndex:s.index,timeS:s.timeS,technology:s.technology,servingCell:s.servingCell,event:s.event})),
     note:'UI-only analysis. No Sionna-RT execution, verified 4G/5G measurement, or network acceptance verdict is implied.'};
 }

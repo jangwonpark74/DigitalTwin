@@ -1,0 +1,102 @@
+import { expect, test } from '@playwright/test';
+import { spawnPython, runToolSync } from '../../scripts/runtime.mjs';
+import { createServer } from 'node:net';
+import { once } from 'node:events';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { execFileSync } from 'node:child_process';
+import { clickWorkspaceButton } from './navigation';
+
+test('cell declarations persist atomically and resolve measurements against working or frozen inventory', async ({ page }) => {
+  test.setTimeout(120_000);
+  const temporary = await mkdtemp(join(tmpdir(), 'atlas-cell-inventory-'));
+  const socket = createServer(); socket.listen(0, '127.0.0.1'); await once(socket, 'listening');
+  const address = socket.address(); if (!address || typeof address === 'string') throw new Error('No port');
+  const port = address.port; await new Promise<void>(resolve => socket.close(() => resolve()));
+  runToolSync('vite', ['build'], { stdio: 'ignore' });
+  const server = spawnPython(['serve.py', '--port', String(port)], { env: { ...process.env, ATLAS_DB_PATH: join(temporary, 'inventory.sqlite3') }, stdio: 'ignore' });
+  try {
+    const origin = `http://127.0.0.1:${port}`;
+    await expect.poll(async () => { try { return (await page.request.get(`${origin}/api/workspace`)).status(); } catch { return 0; } }).toBe(200);
+    const fixture = JSON.parse(execFileSync(process.execPath, ['tests/fixtures/cell-inventory.mjs'], { encoding: 'utf8' }));
+    expect((await page.request.put(`${origin}/api/workspace`, { data: { revision: 0, workspace: fixture.workspace, artifacts: fixture.artifacts } })).status()).toBe(200);
+    const original = fixture.workspace.projects[0].project, errors: string[] = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const openCell = async () => {
+      await page.goto(`${origin}/?workspace=planner`);
+      await page.locator(`[data-radio-site="${fixture.siteId}"]`).click();
+      await page.getByRole('tab', { name: new RegExp(`${fixture.cellId}$`) }).click();
+      await page.getByRole('tab', { name: 'RF', exact: true }).click();
+      await page.getByText('Cell identity and carrier', { exact: true }).click();
+    };
+    await openCell();
+    const declaration = page.getByLabel('Cell identity and carrier declaration');
+    await declaration.getByLabel('MNC', { exact: true }).fill('1');
+    await declaration.getByRole('button', { name: 'Save cell declaration' }).click();
+    await expect(declaration.getByRole('alert')).toContainText('MNC needs 2 or 3 digits');
+    expect((await (await page.request.get(`${origin}/api/workspace`)).json()).revision).toBe(1);
+    await declaration.getByRole('button', { name: 'Reset declaration draft' }).click();
+    await declaration.getByLabel('Carrier label').fill('Working carrier B');
+    await page.getByRole('tab', { name: new RegExp(`${fixture.siteId}-C1$`) }).click();
+    await expect(declaration.getByLabel('Cell RAT')).toHaveValue('LTE');
+    await page.getByRole('tab', { name: new RegExp(`${fixture.cellId}$`) }).click();
+    await page.getByRole('tab', { name: 'Antenna', exact: true }).click();
+    await page.getByRole('tab', { name: 'RF', exact: true }).click();
+    await expect(declaration.getByLabel('Carrier label')).toHaveValue('Working carrier B');
+    const directory = 'docs/design-review/cell-inventory'; await mkdir(directory, { recursive: true });
+    await declaration.scrollIntoViewIfNeeded(); await page.screenshot({ path: `${directory}/inventory-desktop.png`, fullPage: true });
+    await page.setViewportSize({ width: 390, height: 844 }); await declaration.scrollIntoViewIfNeeded();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    await page.screenshot({ path: `${directory}/inventory-mobile.png` });
+    await declaration.getByRole('button', { name: 'Save cell declaration' }).click();
+    await expect(declaration.getByRole('status')).toContainText(`${fixture.cellId} declaration saved`);
+    let saved = await (await page.request.get(`${origin}/api/workspace`)).json();
+    let project = saved.workspace.projects[0].project;
+    expect(project.study).toEqual(original.study); expect(project.measurementLibrary).toEqual(original.measurementLibrary);
+    expect(project.driveMeasurements).toEqual(original.driveMeasurements);
+    expect(project.sites[1].cells[1].inventoryIdentity).toMatchObject({ mcc: '001', mnc: '01', cellId: '13', carrierName: 'Working carrier B' });
+    await page.setViewportSize({ width: 1440, height: 1000 }); await openCell();
+    await expect(declaration.getByLabel('Carrier label')).toHaveValue('Working carrier B');
+    await clickWorkspaceButton(page, 'Measurement datasets');
+    await page.getByRole('button', { name: 'Review cell identities' }).click();
+    const target = page.getByRole('combobox', { name: `${fixture.source.technology} ${fixture.source.servingCell} project cell` });
+    await expect(target.locator(`option[value="${fixture.siteId}-C1"]`)).toHaveCount(0);
+    await expect(target.locator(`option[value="${fixture.cellId}"]`)).toContainText('NCGI 001-01-0x00000000D');
+    await expect(target.locator(`option[value="${fixture.cellId}"]`)).toContainText('Working carrier B');
+    await page.getByRole('button', { name: 'Cancel identity review' }).click();
+    await clickWorkspaceButton(page, 'Virtual drive test'); await expect(page.locator('#dm-selected')).toContainText('Working carrier B');
+    await page.goto(`${origin}/?workspace=ray`);
+    await page.getByLabel('Propagation input version').selectOption('baseline:inventory-baseline');
+    await expect(page.getByLabel('Selected drive sample')).toContainText('Trial carrier A');
+    await page.getByLabel('Propagation input version').selectOption('working');
+    await expect(page.getByLabel('Selected drive sample')).toContainText('Working carrier B');
+    for (const kind of ['range', 'duplicate', 'type', 'whitespace', 'huge-integer']) {
+      const draft = structuredClone(saved.workspace), data = draft.projects[0].project;
+      if (kind === 'range') data.sites[1].cells[1].inventoryIdentity.pci = 1008;
+      else if (kind === 'duplicate') data.sites[1].cells[2].inventoryIdentity = structuredClone(data.sites[1].cells[1].inventoryIdentity);
+      else if (kind === 'type') data.sites[1].cells[1].inventoryIdentity.technology = ['NR'];
+      else if (kind === 'whitespace') data.sites[1].cells[1].inventoryIdentity.carrierName = '\uFEFFuntrimmed';
+      else data.sites[1].cells[1].inventoryIdentity.pci = '__OUT_OF_RANGE_INTEGER__';
+      const payload = { revision: saved.revision, workspace: draft, artifacts: fixture.artifacts };
+      const request = kind === 'huge-integer' ? JSON.stringify(payload).replace('"__OUT_OF_RANGE_INTEGER__"', '9'.repeat(400)) : payload;
+      expect((await page.request.put(`${origin}/api/workspace`, { data: request, headers: { 'Content-Type': 'application/json' } })).status()).toBe(400);
+      expect(await (await page.request.get(`${origin}/api/workspace`)).json()).toEqual(saved);
+    }
+    await openCell(); await declaration.getByLabel('Cell RAT').selectOption('LTE');
+    await declaration.getByLabel('Channel number (NR-ARFCN / EARFCN)').fill('100');
+    await declaration.getByRole('button', { name: 'Save cell declaration' }).click();
+    await expect(declaration.getByRole('status')).toContainText('declaration saved');
+    await clickWorkspaceButton(page, 'Virtual drive test'); await expect(page.locator('#dm-selected')).toContainText('Radio technology mismatch');
+    await openCell(); await declaration.getByRole('button', { name: 'Clear declaration' }).click();
+    await expect(declaration.getByRole('status')).toContainText('declaration cleared');
+    saved = await (await page.request.get(`${origin}/api/workspace`)).json(); project = saved.workspace.projects[0].project;
+    expect(Object.hasOwn(project.sites[1].cells[1], 'inventoryIdentity')).toBe(false);
+    expect(project.study).toEqual(original.study); expect(project.driveMeasurements).toEqual(original.driveMeasurements);
+    expect(errors).toEqual([]);
+  } finally {
+    if (server.exitCode === null && server.signalCode === null) { const stopped = once(server, 'exit'); server.kill('SIGTERM'); await stopped; }
+    await rm(temporary, { recursive: true, force: true });
+  }
+});

@@ -41,20 +41,10 @@ async function stop(process: ChildProcess) {
   }
 }
 async function openLegacyDrive(page: Page) {
-  await openMobileNavigation(page);
-  const navigation = page.getByRole('button', { name: 'Virtual drive test' });
-  const group = page.getByRole('button', { name: 'USE CASES' });
-  await expect(group).toBeVisible();
-  if (!(await navigation.isVisible())) await group.click();
-  await navigation.click();
+  await clickWorkspaceButton(page, 'Virtual drive test');
 }
 async function openLegacyHardware(page: Page) {
-  await openMobileNavigation(page);
-  const navigation = page.getByRole('button', { name: 'Hardware inventory' });
-  const group = page.getByRole('button', { name: 'SYSTEM' });
-  await expect(group).toBeVisible();
-  if (!(await navigation.isVisible())) await group.click();
-  await navigation.click();
+  await clickWorkspaceButton(page, 'Hardware inventory');
 }
 
 async function loadLegacyRoot(page: Page, origin: string, preview = false) {
@@ -82,7 +72,7 @@ test('built Drive preview and React root share one disposable SQLite project and
     page.on('pageerror', error => errors.push(error.message));
     await loadLegacyRoot(page, origin, true);
     await page.getByRole('button', { name: 'Preview activity route' }).click();
-    await clickWorkspaceButton(page, /USE CASES/i);
+
     await clickWorkspaceButton(page, 'Virtual drive test');
     const preview = page.getByRole('region', { name: 'Drive preview route' });
     await expect(preview.getByText('SYNTHETIC DEMO · NOT MEASURED')).toBeVisible();
@@ -165,7 +155,7 @@ test('built Hardware preview and React root share validated plans in disposable 
 
     await loadLegacyRoot(page, origin, true);
     await page.getByRole('button', { name: 'Preview activity route' }).click();
-    await clickWorkspaceButton(page, /SYSTEM/i);
+
     await clickWorkspaceButton(page, 'Hardware inventory');
     const preview = page.getByRole('region', { name: 'Hardware preview route' });
     await expect(preview.getByText('No live hardware connected')).toBeVisible();
@@ -216,7 +206,7 @@ test('built Hardware preview and React root share validated plans in disposable 
 
     await page.goto(`${origin}/frontend-preview.html`);
     await page.getByRole('button', { name: 'Preview activity route' }).click();
-    await clickWorkspaceButton(page, /SYSTEM/i);
+
     await clickWorkspaceButton(page, 'Hardware inventory');
     await preview.getByRole('tab', { name: 'Capacity & registry' }).click();
     await expect(preview.locator('[data-pool-count="GH-POOL-02"]')).toHaveValue('4');

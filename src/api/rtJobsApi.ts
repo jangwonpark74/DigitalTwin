@@ -20,3 +20,22 @@ export async function getRtJob(jobId: string, fetcher: typeof fetch = fetch) {
   if (record.id !== jobId) throw new Error('Response belongs to a different job');
   return record;
 }
+
+export async function cancelRtJob(projectId: string, jobId: string, fetcher: typeof fetch = fetch) {
+  apiIdentifier(projectId, 'project');
+  const id = apiIdentifier(jobId, 'job');
+  const record = rtJobSchema.parse(await postJson(`/api/rt/jobs/${id}/cancel`, { projectId }, fetcher));
+  if (record.id !== jobId || record.projectId !== projectId) throw new Error('Cancellation response belongs to a different job or project');
+  if (record.status !== 'cancelling' && record.status !== 'cancelled') throw new Error('Cancellation was not accepted');
+  return record;
+}
+
+export async function retryRtJob(projectId: string, parentId: string, fetcher: typeof fetch = fetch) {
+  apiIdentifier(projectId, 'project');
+  const id = apiIdentifier(parentId, 'job');
+  const record = rtJobSchema.parse(await postJson(`/api/rt/jobs/${id}/retry`, { projectId }, fetcher));
+  if (record.projectId !== projectId) throw new Error('Retry response belongs to a different project');
+  if (record.id === parentId || record.retryOf !== parentId) throw new Error('Retry response does not preserve its parent linkage');
+  if (record.status !== 'queued') throw new Error('The retry was not queued');
+  return record;
+}

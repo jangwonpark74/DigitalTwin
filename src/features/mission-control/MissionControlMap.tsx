@@ -7,7 +7,7 @@ type LayerId = keyof MapLayers;
 const defaultLayers: MapLayers = { buildings: true, sectors: true, ues: true };
 type Props = { model: ReturnType<typeof buildMissionMapModel>;
   onSelect: (siteId: string) => void;
-  onNavigate: (route: 'radio' | 'planner') => void;
+  onNavigate: (route: 'site-position' | 'planner') => void;
   placement?: { siteId: string; onPlace: (position: { x: number; y: number }) => void;
     onCancel: () => void; saving?: boolean };
   layers?: MapLayers;
@@ -141,7 +141,7 @@ export function MissionControlSiteInspector({ model, onNavigate }: { model: Read
       <div><dt>Radio coordinates</dt><dd>{model.selectedSite.coordinates}</dd></div>
       <div><dt>Backhaul target</dt><dd>{model.selectedSite.backhaul}</dd></div>
     </dl>
-    <button type="button" onClick={() => onNavigate('radio')}>Configure radio location →</button>
+    <button type="button" onClick={() => onNavigate('site-position')}>Configure radio location →</button>
     <button type="button" onClick={() => onNavigate('planner')}>Configure site &amp; cells →</button>
   </section>;
 }

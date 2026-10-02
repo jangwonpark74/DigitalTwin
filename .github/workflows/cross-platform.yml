@@ -37,7 +37,12 @@ jobs:
         with:
           python-version: '3.13'
       - name: Install pinned dependencies including platform bindings
+        if: runner.os != 'Windows'
         run: npm run setup
+      - name: Set up checkout with Windows PowerShell 5.1
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: .\scripts\setup-windows.ps1 -SkipToolInstall -SkipBrowserInstall -SkipChecks
       - name: Test, typecheck, build and verify local startup and API
         run: npm run check
       - name: Install browser

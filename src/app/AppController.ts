@@ -3,6 +3,9 @@ import { readWorkspace, writeWorkspace, WorkspaceConflictError } from '../api/wo
 import { workspaceSchema, type WorkspaceSnapshot } from '../api/schemas';
 import { listArtifacts } from '../api/artifactsApi';
 import { getRun, listRuns } from '../api/runsApi';
+import { assertStudyTransition, stableJson } from '../../study.mjs';
+import { assertMeasurementTransition } from '../../measurement-library.mjs';
+import { resetMeasurementSelection } from '../features/city-map/ProjectMapSession';
 
 const BACKUP_KEY = 'atlas-ran-twin-workspaces';
 const LEGACY_KEY = 'atlas-ran-twin-project';
@@ -114,12 +117,14 @@ export class AppController {
     try {
       const envelope = await this.api.read();
       if (envelope.workspace) {
+        this.resetMeasurementViews(envelope.workspace);
         this.state = { ...this.state, workspace: envelope.workspace, revision: envelope.revision, status: 'ready', error: null, dirty: false };
       } else {
         // Only an empty SQLite workspace can be initialized from the browser backup.
         const restored = restoreWorkspaceState(browserJson(BACKUP_KEY), browserJson(LEGACY_KEY));
         const workspace = workspaceSchema.parse(restored);
         const revision = await this.api.write(workspace, envelope.revision);
+        this.resetMeasurementViews(workspace);
         this.state = { ...this.state, workspace, revision, status: 'ready', error: null, dirty: false };
         this.backup(workspace);
       }
@@ -139,6 +144,11 @@ export class AppController {
     const next = workspaceSchema.parse(command(structuredClone(this.state.workspace)));
     const errors = validateWorkspaceState(next as Parameters<typeof validateWorkspaceState>[0]);
     if (errors.length) throw new Error(errors[0]);
+    for (const record of next.projects) {
+      assertStudyTransition(this.state.workspace.projects.find(item => item.id === record.id)?.project.study, record.project.study);
+      assertMeasurementTransition(this.state.workspace.projects.find(item => item.id === record.id)?.project.measurementLibrary, record.project.measurementLibrary);
+    }
+    this.resetMeasurementViews(next);
     this.resetQueries({ keepRuns: next.activeProjectId === this.state.workspace.activeProjectId });
     this.state.workspace = next;
     this.state.dirty = true;
@@ -166,6 +176,15 @@ export class AppController {
     });
     this.queue = attempt.catch(() => undefined);
     return attempt;
+  }
+
+  private resetMeasurementViews(next: WorkspaceSnapshot) {
+    for (const record of next.projects) {
+      const previous = this.state.workspace?.projects.find(item => item.id === record.id);
+      if (previous && stableJson(previous.project.driveMeasurements ?? null) !== stableJson(record.project.driveMeasurements ?? null)) {
+        resetMeasurementSelection(this, record.id);
+      }
+    }
   }
 
   async refreshArtifacts() {
@@ -245,12 +264,13 @@ export class AppController {
     }
   }
 
-  async selectRun(runId: string) {
+  async selectRun(runId: string, { background = false }: { background?: boolean } = {}) {
     const epoch = this.scopeEpoch;
     const record = await this.confirmedRecord(epoch);
     if (!record) return null;
     const { id } = record, request = ++this.runRequest;
-    this.state.selectedRun = { status: 'loading', data: null, error: null };
+    const previous = background && this.state.selectedRun.data?.id === runId ? this.state.selectedRun.data : null;
+    this.state.selectedRun = { status: 'loading', data: previous, error: null };
     this.publish();
     const current = () => epoch === this.scopeEpoch && request === this.runRequest;
     try {
@@ -259,11 +279,17 @@ export class AppController {
       if (run.projectId !== id) throw new Error('Run belongs to a different project');
       if (run.id !== runId) throw new Error('Response belongs to a different run');
       this.state.selectedRun = { status: 'ready', data: run, error: null };
+      if (this.state.runs.data) {
+        const count = run.result?.totalPaths;
+        this.state.runs.data = { ...this.state.runs.data, runs: this.state.runs.data.runs.map(item => item.id === run.id
+          ? { ...item, status: run.status, completedAt: run.completedAt, error: run.error, retryOf: run.retryOf,
+            cancelRequestedAt: run.cancelRequestedAt, totalPaths: typeof count === 'number' && Number.isInteger(count) && count >= 0 ? count : null } : item) };
+      }
       this.publish();
       return run;
     } catch (error) {
       if (!current()) return null;
-      this.state.selectedRun = { status: 'error', data: null, error: error instanceof Error ? error.message : String(error) };
+      this.state.selectedRun = { status: 'error', data: previous, error: error instanceof Error ? error.message : String(error) };
       this.publish();
       throw error;
     }

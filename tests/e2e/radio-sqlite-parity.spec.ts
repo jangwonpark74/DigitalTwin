@@ -45,10 +45,8 @@ async function stop(process: ChildProcess) {
 }
 
 async function openLegacyRadio(page: Page) {
-  await openMobileNavigation(page);
-  const navigation = page.getByRole('button', { name: 'Radio planner' });
-  await expect(navigation).toBeVisible();
-  await navigation.click();
+  await clickWorkspaceButton(page, 'Sites and Cells');
+  await page.getByRole('tab', { name: 'Position', exact: true }).click();
 }
 
 test('built Radio preview and React root share a saved map estimate in disposable SQLite', async ({ page }) => {
@@ -69,10 +67,9 @@ test('built Radio preview and React root share a saved map estimate in disposabl
 
     await page.goto(`${origin}/frontend-preview.html`);
     await page.getByRole('button', { name: 'Preview activity route' }).click();
-    await clickWorkspaceButton(page, /RADIO/i);
-    await clickWorkspaceButton(page, /Radio planner/i);
-    const preview = page.getByRole('region', { name: 'Radio planner preview route' });
-    await expect(preview.getByText('Coordinates not set')).toBeVisible();
+    await openLegacyRadio(page);
+    const preview = page.getByRole('region', { name: 'Site & cell planner preview route' });
+    await expect(preview.getByRole('tabpanel', { name: 'Position', exact: true }).getByText('Coordinates not set · Unassigned', { exact: true })).toBeVisible();
     await preview.getByRole('button', { name: /SITE-02/ }).click();
     await preview.getByRole('button', { name: '⌖ Place on map' }).click();
     const beforeCity = await (await fetch(`${origin}/api/workspace`)).json();
@@ -95,7 +92,8 @@ test('built Radio preview and React root share a saved map estimate in disposabl
     await expect(placement.getByRole('button', { name: 'Place radio at these coordinates' })).toBeFocused();
     await placement.getByRole('button', { name: 'Place radio at these coordinates' }).click();
 
-    await expect(page.getByRole('region', { name: 'Radio planner preview route' }).getByText('Schematic-map estimate')).toBeVisible();
+    await expect(preview.getByText(/Schematic-map estimate/)).toBeVisible();
+    await expect(preview.getByRole('tab', { name: 'Position', exact: true })).toHaveAttribute('aria-selected', 'true');
     const workspaceResponse = await fetch(`${origin}/api/workspace`);
     const workspace = await workspaceResponse.json();
     const project = workspace.workspace.projects[0];
@@ -130,18 +128,20 @@ test('built Radio preview and React root share a saved map estimate in disposabl
     expect(fittedMap.radiusMeters).toBeLessThanOrEqual(20000);
     await page.getByRole('button', { name: 'Project 3D' }).click();
     await expect(page.getByRole('region', { name: 'Project 3D view' })).toBeVisible();
-    await expect(page.getByRole('group', { name: '3D camera controls' })).toContainText('Yaw 35°');
-    await page.getByRole('button', { name: 'Rotate left' }).click();
-    await expect(page.getByRole('group', { name: '3D camera controls' })).toContainText('Yaw 20°');
+    const mapHost = page.getByRole('region', { name: 'Project 3D view' }).locator('.open-rf-host');
+    await expect.poll(async () => Number(await mapHost.getAttribute('data-map-pitch'))).toBeCloseTo(52, 6);
+    const originalBearing = Number(await mapHost.getAttribute('data-map-bearing'));
+    await page.getByRole('group', { name: 'Map camera controls' }).getByRole('button', { name: 'Rotate left' }).click();
+    await expect.poll(async () => (Number(await mapHost.getAttribute('data-map-bearing')) + 360) % 360)
+      .toBeCloseTo((originalBearing + 345) % 360, 6);
     await page.getByRole('button', { name: '2D map' }).click();
 
     await page.reload();
     await page.getByRole('button', { name: 'Preview activity route' }).click();
-    await clickWorkspaceButton(page, /RADIO/i);
-    await clickWorkspaceButton(page, /Radio planner/i);
-    const reloadedPreview = page.getByRole('region', { name: 'Radio planner preview route' });
+    await openLegacyRadio(page);
+    const reloadedPreview = page.getByRole('region', { name: 'Site & cell planner preview route' });
     await reloadedPreview.getByRole('button', { name: /SITE-02/ }).click();
-    await expect(reloadedPreview.getByText('Schematic-map estimate')).toBeVisible();
+    await expect(reloadedPreview.getByText(/Schematic-map estimate/)).toBeVisible();
     await reloadedPreview.getByRole('button', { name: 'View map scope' }).click();
     await expect(page.getByRole('region', { name: 'Map scope and scene' }).getByText('parity.geojson', { exact: true })).toBeVisible();
     await page.setViewportSize({ width: 390, height: 844 });
@@ -152,10 +152,10 @@ test('built Radio preview and React root share a saved map estimate in disposabl
     await clickWorkspaceButton(page, 'City map');
     await expect(page.getByRole('button', { name: 'Fit map scope to geometry' })).toBeVisible();
     await expect(page.getByRole('region', { name: 'Map scope and scene' })).toContainText('parity.geojson');
-    await clickWorkspaceButton(page, 'Radio planner');
-    const rootRadio = page.getByRole('region', { name: 'Radio planner preview route' });
+    await openLegacyRadio(page);
+    const rootRadio = page.getByRole('region', { name: 'Site & cell planner preview route' });
     await rootRadio.locator('[data-radio-site="SITE-02"]').click();
-    await expect(rootRadio.getByText('Schematic-map estimate')).toBeVisible();
+    await expect(rootRadio.getByText(/Schematic-map estimate/)).toBeVisible();
     await expect(rootRadio.locator('[data-radio-location="SITE-02"][data-prop="latitude"]')).not.toHaveValue('');
     await expect(rootRadio.locator('[data-radio-location="SITE-02"][data-prop="longitude"]')).not.toHaveValue('');
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -167,7 +167,7 @@ test('built Radio preview and React root share a saved map estimate in disposabl
   }
 });
 
-test('built Site & Cell Planner and React root share site, cell and add-site changes in SQLite', async ({ page }) => {
+test('canonical Sites and Cells and Radio bookmarks persist site, sector and RF changes in SQLite', async ({ page }, testInfo) => {
   const root = process.cwd();
   const scratch = process.env.ATLAS_TEST_TMPDIR ?? join(root, 'test-results');
   await mkdir(scratch, { recursive: true });
@@ -186,7 +186,7 @@ test('built Site & Cell Planner and React root share site, cell and add-site cha
 
     await page.goto(`${origin}/frontend-preview.html`);
     await page.getByRole('button', { name: 'Preview activity route' }).click();
-    await clickWorkspaceButton(page, 'Site & cell planner');
+    await clickWorkspaceButton(page, 'Sites and Cells');
     const planner = page.getByRole('region', { name: 'Site & cell planner preview route' });
     await expect(planner.getByLabel('Site name', { exact: true })).toHaveValue('Civic Square');
 
@@ -195,18 +195,22 @@ test('built Site & Cell Planner and React root share site, cell and add-site cha
     await page.keyboard.press('ArrowRight');
     await expect(planner.getByRole('tab', { name: /SITE-02-C3/ })).toHaveAttribute('aria-selected', 'true');
     await planner.getByRole('tab', { name: /SITE-02-C2/ }).click();
+    await planner.getByRole('tab', { name: 'Antenna', exact: true }).click();
     const azimuth = planner.getByLabel('Azimuth (°)');
     await azimuth.fill('221');
     await azimuth.press('Tab');
     await expect.poll(async () => (await persisted()).project.sites[1].cells[1].azimuthDeg).toBe(221);
     await expect.poll(async () => (await persisted()).activity?.[0]?.title).toBe('Cell setting changed');
 
+    await planner.getByRole('tab', { name: 'Summary', exact: true }).click();
     const siteName = planner.getByLabel('Site name', { exact: true });
     await siteName.fill('River Park');
     await expect(siteName).toHaveValue('River Park');
     await siteName.blur();
     await expect.poll(async () => (await persisted()).project.sites[1].name).toBe('River Park');
+    await planner.getByRole('tab', { name: 'Position', exact: true }).click();
     const mapX = planner.getByLabel('Map X position (%)');
+    await planner.getByText('Project scope position', { exact: true }).click();
     await mapX.fill('40');
     await mapX.blur();
     await expect.poll(async () => (await persisted()).project.sites[1]).toMatchObject({
@@ -224,22 +228,23 @@ test('built Site & Cell Planner and React root share site, cell and add-site cha
 
     await page.setViewportSize({ width: 390, height: 844 });
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    await planner.getByRole('button', { name: 'Open 3D RF scene' }).click();
+    await planner.getByRole('button', { name: '3D scene', exact: true }).click();
     const scene = planner.getByRole('region', { name: 'Three-dimensional project RF scene' });
     await expect(scene.getByRole('status')).toContainText('3D RF scene ready', { timeout: 15000 });
-    await expect(planner.getByRole('region', { name: '3D scene site and sector list' }).getByText(/schematic map estimate/)).toBeVisible();
+    await expect(planner.getByLabel('Site configuration')).toContainText('Coordinates not set');
+    await expect(planner.locator('.rf-map-marker.tx').filter({ hasText: 'SITE-04' })).toHaveCount(0);
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    await planner.getByRole('button', { name: 'Return to schematic 2D' }).click();
+    await planner.getByRole('button', { name: '2D map', exact: true }).click();
     await expect(scene).toHaveCount(0);
     await page.reload();
     await page.getByRole('button', { name: 'Preview activity route' }).click();
-    await clickWorkspaceButton(page, 'Site & cell planner');
+    await clickWorkspaceButton(page, 'Sites and Cells');
     const reloaded = page.getByRole('region', { name: 'Site & cell planner preview route' });
     await reloaded.getByRole('button', { name: 'Select North Tower site SITE-04' }).click();
     await expect(reloaded.getByLabel('Site name', { exact: true })).toHaveValue('North Tower');
 
     await page.goto(`${origin}/`);
-    await clickWorkspaceButton(page, 'Site & cell planner');
+    await clickWorkspaceButton(page, 'Sites and Cells');
     const rootPlanner = page.getByRole('region', { name: 'Site & cell planner preview route' });
     await rootPlanner.getByRole('button', { name: 'Select North Tower site SITE-04' }).click();
     await expect(rootPlanner.getByLabel('Site name', { exact: true })).toHaveValue('North Tower');
@@ -248,6 +253,47 @@ test('built Site & Cell Planner and React root share site, cell and add-site cha
     await expect.poll(async () => (await (await fetch(origin + '/api/workspace')).json())
       .workspace.projects[0].project.sites.find((site: { id: string }) => site.id === 'SITE-02')
       .cells.find((cell: { id: string }) => cell.id === 'SITE-02-C2').azimuthDeg).toBe(221);
+    await page.goto(`${origin}/?workspace=radio`);
+    const compatibility = page.getByRole('region', { name: 'Radio planner preview route' });
+    await expect(compatibility.getByRole('heading', { name: 'Sites and Cells', exact: true })).toBeVisible();
+    await expect(page.getByRole('complementary', { name: 'Primary navigation' }).getByRole('button', { name: 'Radio planner', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText('Sites and Cells');
+    await expect(compatibility.getByRole('tab', { name: 'RF', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await compatibility.getByRole('button', { name: 'Select River Park site SITE-02' }).click();
+    await compatibility.getByRole('tab', { name: /SITE-02-C2/ }).click();
+    const ruModel = compatibility.getByLabel('RU model / part number');
+    await ruModel.fill('Reviewed RU reference'); await ruModel.blur();
+    await expect.poll(async () => (await persisted()).project.sites[1].radio.ruModel).toBe('Reviewed RU reference');
+    const rf = compatibility.getByRole('tab', { name: 'RF', exact: true });
+    await rf.focus(); await page.keyboard.press('ArrowRight');
+    await expect(compatibility.getByRole('tab', { name: 'Antenna', exact: true })).toBeFocused();
+    await expect(compatibility.getByRole('tab', { name: /SITE-02-C2/ })).toHaveAttribute('aria-selected', 'true');
+    await compatibility.getByLabel('RF front end').selectOption('MMU');
+    await expect.poll(async () => (await persisted()).project.sites[1].frontEnd).toBe('MMU');
+    const elements = compatibility.getByLabel('Array elements');
+    await elements.fill('0'); await elements.blur();
+    await expect(page.getByRole('alert')).toContainText('Input rejected');
+    await expect(elements).toHaveValue('');
+    await elements.fill('64'); await elements.blur();
+    await expect.poll(async () => (await persisted()).project.sites[1].radio.mmuElements).toBe(64);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    const sectorAzimuth = compatibility.getByLabel('Azimuth (°)');
+    await sectorAzimuth.fill(''); await sectorAzimuth.blur();
+    await expect(page.getByRole('alert')).toContainText('requires a number');
+    await expect(sectorAzimuth).toHaveValue('221');
+    expect((await persisted()).project.sites[1].cells[1].azimuthDeg).toBe(221);
+    await sectorAzimuth.fill('0'); await sectorAzimuth.blur();
+    await expect.poll(async () => (await persisted()).project.sites[1].cells[1].azimuthDeg).toBe(0);
+    await sectorAzimuth.fill('221'); await sectorAzimuth.blur();
+    await expect.poll(async () => (await persisted()).project.sites[1].cells[1].azimuthDeg).toBe(221);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await expect.poll(async () => (await elements.boundingBox())?.width ?? 0).toBeGreaterThan(200);
+    const sectorList = compatibility.getByRole('tablist', { name: 'River Park sectors' });
+    await expect.poll(() => sectorList.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await compatibility.screenshot({ path: testInfo.outputPath('sites-cells-antenna-desktop.png') });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await compatibility.screenshot({ path: testInfo.outputPath('sites-cells-antenna-mobile.png') });
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     expect(errors).toEqual([]);
   } finally {

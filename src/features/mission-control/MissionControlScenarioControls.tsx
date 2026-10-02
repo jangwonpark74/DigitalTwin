@@ -10,7 +10,7 @@ type Props = {
   onChangeAssumption: (path: AssumptionPath, value: string) => Promise<void> | void;
 };
 const presets = [
-  { id: 'baseline', label: 'Baseline' },
+  { id: 'baseline', label: 'Default assumptions' },
   { id: 'blockage', label: 'Urban blockage' },
   { id: 'ue-surge', label: 'UE density surge' },
   { id: 'clear-line', label: 'Clear line-of-sight' },
@@ -63,8 +63,8 @@ export default function MissionControlScenarioControls({ state, onSelectPreset, 
       .finally(() => { if (pending.current === ticket) pending.current = ''; });
   };
 
-  return <section className="mission-control-scenarios" aria-label="Quick scenarios">
-    <h2>Quick scenarios</h2>
+  return <section className="mission-control-scenarios" aria-label="Illustrative preset controls">
+    <h2>Illustrative assumptions</h2>
     <div className="mission-control-presets" role="group" aria-label="Illustrative presets">
       {presets.map(preset => <button type="button" key={preset.id} aria-pressed={state.preset === preset.id}
         onClick={() => select(preset.id)}>{preset.label}</button>)}

@@ -26,6 +26,18 @@ beforeEach(() => {
   vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
 });
 
+
+async function visit(user: ReturnType<typeof userEvent.setup>, label: string) {
+  const button = [...document.querySelectorAll<HTMLButtonElement>('[data-nav-route]')].find(item => item.getAttribute('aria-label') === label);
+  if (!button) throw new Error(`Workspace route not found: ${label}`);
+  const group = button.parentElement;
+  if (group?.hidden) {
+    const toggle = document.querySelector<HTMLButtonElement>(`[aria-controls="${group.id}"]`);
+    if (toggle) await user.click(toggle);
+  }
+  await user.click(button);
+}
+
 describe('isolated activity migration preview', () => {
   it('hydrates once, switches projects through the sole controller, and logs an exported manifest', async () => {
     const user = userEvent.setup();
@@ -70,7 +82,7 @@ describe('isolated activity migration preview', () => {
     const controller = new AppController(api);
     render(<ActivityPreview controller={controller} />);
     await screen.findByRole('heading', { name: 'Activity & handoff' });
-    await user.click(screen.getByRole('button', { name: 'RAN topology' }));
+    await visit(user, 'RAN topology');
     expect(screen.queryByRole('region', { name: 'Legacy activity route' })).toBeNull();
     expect(screen.getByRole('region', { name: 'RAN topology preview route' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Physical-to-virtual RAN stack' })).toBeTruthy();
@@ -87,7 +99,7 @@ describe('isolated activity migration preview', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: 'Active project' }), second.id);
     await waitFor(() => expect(controller.getSnapshot().workspace?.activeProjectId).toBe(second.id));
     expect(screen.getByRole('textbox', { name: 'vCore endpoint label' })).toHaveProperty('value', '');
-    await user.click(screen.getByRole('button', { name: 'Activity' }));
+    await visit(user, 'Activity');
     expect(screen.getByRole('region', { name: 'Activity preview route' })).toBeTruthy();
     expect(screen.queryByRole('region', { name: 'RAN topology preview route' })).toBeNull();
     expect(screen.getByText('Other project activity')).toBeTruthy();
@@ -100,9 +112,7 @@ describe('isolated activity migration preview', () => {
     const controller = new AppController(api);
     render(<ActivityPreview controller={controller} />);
     await screen.findByRole('heading', { name: 'Activity & handoff' });
-    const system = screen.getByRole('button', { name: /SYSTEM/i });
-    await user.click(system);
-    await user.click(screen.getByRole('button', { name: 'Monitoring' }));
+    await visit(user, 'Monitoring');
     expect(screen.getByRole('region', { name: 'Monitoring preview route' })).toBeTruthy();
     expect(screen.queryByRole('region', { name: 'Legacy activity route' })).toBeNull();
     expect(screen.getAllByText('NO DATA', { exact: true })).toHaveLength(2);
@@ -120,7 +130,7 @@ describe('isolated activity migration preview', () => {
     expect(screen.getByRole('spinbutton', { name: /latency threshold/i })).toHaveProperty('value', '10');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Active project' }), second.id);
     expect(screen.getByRole('spinbutton', { name: /H200 GPU utilization threshold/i })).toHaveProperty('value', '85');
-    await user.click(screen.getByRole('button', { name: 'Activity' }));
+    await visit(user, 'Activity');
     expect(screen.getByText('Other project activity')).toBeTruthy();
   });
 
@@ -131,8 +141,7 @@ describe('isolated activity migration preview', () => {
     const controller = new AppController(api);
     render(<ActivityPreview controller={controller} />);
     await screen.findByRole('heading', { name: 'Activity & handoff' });
-    await user.click(screen.getByRole('button', { name: /SYSTEM/i }));
-    await user.click(screen.getByRole('button', { name: 'Software management' }));
+    await visit(user, 'Software management');
     expect(screen.getByRole('region', { name: 'Software preview route' })).toBeTruthy();
     expect(screen.getAllByText('NOT VERIFIED')).toHaveLength(6);
     fireEvent.change(screen.getByRole('textbox', { name: 'Target version for Sionna-RT' }), { target: { value: ' 2.1.0 ' } });
@@ -148,7 +157,7 @@ describe('isolated activity migration preview', () => {
     expect(screen.getByRole('textbox', { name: 'Target version for Sionna-RT' })).toHaveProperty('value', '2.1.0');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Active project' }), second.id);
     expect(screen.getByRole('textbox', { name: 'Target version for Sionna-RT' })).toHaveProperty('value', 'unassigned');
-    await user.click(screen.getByRole('button', { name: 'Activity' }));
+    await visit(user, 'Activity');
     expect(screen.getByText('Other project activity')).toBeTruthy();
   });
 
@@ -159,8 +168,7 @@ describe('isolated activity migration preview', () => {
     const controller = new AppController(api);
     render(<ActivityPreview controller={controller} />);
     await screen.findByRole('heading', { name: 'Activity & handoff' });
-    await user.click(screen.getByRole('button', { name: /TASKS & SCHEDULE/i }));
-    await user.click(screen.getByRole('button', { name: 'Schedule' }));
+    await visit(user, 'Schedule');
     expect(screen.getByRole('region', { name: 'Schedule preview route' })).toBeTruthy();
     expect(screen.getByText(/Planning calendar only/i)).toBeTruthy();
     expect(screen.getAllByText('NOT RUN')).toHaveLength(7);
@@ -177,7 +185,7 @@ describe('isolated activity migration preview', () => {
     expect((screen.getByLabelText('Reschedule T-02') as HTMLInputElement).value).toBe(valid);
     await user.selectOptions(screen.getByRole('combobox', { name: 'Active project' }), second.id);
     expect((screen.getByLabelText('Reschedule T-01') as HTMLInputElement).value).toBe(original);
-    await user.click(screen.getByRole('button', { name: 'Activity' }));
+    await visit(user, 'Activity');
     expect(screen.getByText('Other project activity')).toBeTruthy();
   });
 
@@ -189,8 +197,7 @@ describe('isolated activity migration preview', () => {
     const controller = new AppController(api, queries);
     render(<ActivityPreview controller={controller} />);
     await screen.findByRole('heading', { name: 'Activity & handoff' });
-    await user.click(screen.getByRole('button', { name: /TASKS & SCHEDULE/i }));
-    await user.click(screen.getByRole('button', { name: 'Task board' }));
+    await visit(user, 'Task board');
     expect(screen.getByRole('region', { name: 'Task board preview route' })).toBeTruthy();
     expect(screen.getByRole('region', { name: 'Run records' })).toBeTruthy();
     expect(document.querySelector('[data-run-refresh]')).toBeNull();
@@ -232,8 +239,7 @@ describe('isolated activity migration preview', () => {
     const controller = new AppController({ read: vi.fn().mockResolvedValue({ revision: 2, workspace }), write: vi.fn().mockResolvedValue(3) }, queries);
     render(<ActivityPreview controller={controller} />);
     await screen.findByRole('heading', { name: 'Activity & handoff' });
-    await user.click(screen.getByRole('button', { name: /TASKS & SCHEDULE/i }));
-    await user.click(screen.getByRole('button', { name: 'Task board' }));
+    await visit(user, 'Task board');
     await waitFor(() => expect(screen.getByRole('button', { name: /Run run-1 · queued/ })).toBeTruthy());
     expect(screen.getByText(/2 runs recorded/)).toBeTruthy();
     await user.click(screen.getByRole('button', { name: /Run run-1 · queued/ }));
@@ -254,7 +260,7 @@ describe('isolated activity migration preview', () => {
     const controller = new AppController(api);
     render(<ActivityPreview controller={controller} />);
     await screen.findByRole('heading', { name: 'Activity & handoff' });
-    await user.click(screen.getByRole('button', { name: 'Virtual UE fleet' }));
+    await visit(user, 'Virtual UE fleet');
     expect(screen.getByText('No UE processes are running in the browser')).toBeTruthy();
     const population = screen.getByRole('spinbutton', { name: 'UE population' });
     fireEvent.change(population, { target: { value: '1800' } });
@@ -288,8 +294,7 @@ describe('isolated activity migration preview', () => {
     const controller = new AppController(api);
     render(<ActivityPreview controller={controller} />);
     await screen.findByRole('heading', { name: 'Activity & handoff' });
-    await user.click(screen.getByRole('button', { name: 'USE CASES' }));
-    await user.click(screen.getByRole('button', { name: 'Package A/B test' }));
+    await visit(user, 'Package A/B test');
     expect(screen.getByText('NO VERDICT')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Export A\/B experiment plan/i })).toBeTruthy();
     const seeds = screen.getByRole('textbox', { name: 'Paired random seeds' });
@@ -318,8 +323,7 @@ describe('isolated activity migration preview', () => {
     const controller = new AppController(api);
     render(<ActivityPreview controller={controller} />);
     await screen.findByRole('heading', { name: 'Activity & handoff' });
-    await user.click(screen.getByRole('button', { name: 'USE CASES' }));
-    await user.click(screen.getByRole('button', { name: 'AI-RAN data generation' }));
+    await visit(user, 'AI-RAN data generation');
     expect(screen.getByText('0 ROWS GENERATED')).toBeTruthy();
     fireEvent.change(screen.getByRole('combobox', { name: 'Learning task' }), { target: { value: 'handover-prediction' } });
     await waitFor(() => expect(api.write).toHaveBeenCalledTimes(2));
@@ -356,7 +360,7 @@ describe('isolated activity migration preview', () => {
     const controller = new AppController(api);
     render(<ActivityPreview controller={controller} />);
     await screen.findByRole('heading', { name: 'Activity & handoff' });
-    await user.click(screen.getByRole('button', { name: 'RAN topology' }));
+    await visit(user, 'RAN topology');
     const endpoint = screen.getByRole('textbox', { name: 'vCore endpoint label' });
     fireEvent.change(endpoint, { target: { value: 'local-draft' } });
     fireEvent.blur(endpoint);
@@ -391,10 +395,11 @@ describe('isolated activity migration preview', () => {
     const controller = new AppController(api);
     render(<ActivityPreview controller={controller} />);
     await screen.findByRole('heading', { name: 'Activity & handoff' });
-    await user.click(screen.getByRole('button', { name: 'Radio planner' }));
+    await visit(user, 'Sites and Cells');
     await user.click(document.querySelector('[data-radio-site="SITE-02"]')!);
+    await user.click(screen.getByRole('tab', { name: 'Position' }));
     await user.click(screen.getByRole('button', { name: /Place on map/i }));
-    expect(screen.getByRole('heading', { name: 'City / cluster radio environment' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'City map' })).toBeTruthy();
     expect(screen.getByRole('form', { name: 'Radio map placement for SITE-02' })).toBeTruthy();
     await user.clear(screen.getByRole('spinbutton', { name: 'Map X position (%)' }));
     await user.type(screen.getByRole('spinbutton', { name: 'Map X position (%)' }), '35');
@@ -402,14 +407,20 @@ describe('isolated activity migration preview', () => {
     await user.type(screen.getByRole('spinbutton', { name: 'Map Y position (%)' }), '72');
     await user.click(screen.getByRole('button', { name: 'Place radio at these coordinates' }));
     await waitFor(() => expect(api.write).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(screen.getByRole('navigation', { name: 'Breadcrumb' }).textContent).toContain('Radio planner'));
+    await waitFor(() => expect(screen.getByRole('navigation', { name: 'Breadcrumb' }).textContent).toContain('Sites and Cells'));
+    expect(screen.getByRole('tab', { name: 'Position' }).getAttribute('aria-selected')).toBe('true');
     const placed = controller.getSnapshot().workspace!.projects[0].project.sites as {
       id: string; x: number; y: number; radioLocation: { latitude: number | null; longitude: number | null; source: string };
     }[];
     expect(placed.find(site => site.id === 'SITE-02')).toMatchObject({
       x: 35, y: 72, radioLocation: { source: 'map-estimate' },
     });
-    expect(screen.getByText('Schematic-map estimate')).toBeTruthy();
+    expect(screen.getByText(/Schematic-map estimate/)).toBeTruthy();
     expect(controller.getSnapshot().workspace!.projects[0].activity[0].title).toBe('Radio location placed on map');
+    const height = screen.getByRole('spinbutton', { name: 'Height (m)' });
+    await user.clear(height); await user.type(height, '0'); await user.tab();
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(screen.getByRole('alert').textContent).toContain('Input rejected');
+    expect(api.write).toHaveBeenCalledTimes(2);
   });
 });

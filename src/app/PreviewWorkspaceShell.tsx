@@ -1,6 +1,7 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { previewRoutes, type PreviewRouteId } from './routeRegistry';
 import type { buildPreviewContext } from './selectors';
+import { sectionForRoute, visibleSections, type WorkspacePreset } from './workflowNavigation';
 
 type PreviewContext = NonNullable<ReturnType<typeof buildPreviewContext>>;
 
@@ -12,10 +13,13 @@ type PreviewWorkspaceShellProps = {
 };
 
 export default function PreviewWorkspaceShell({ route, context, onNavigate: navigate, children }: PreviewWorkspaceShellProps) {
-  const [workspaceOpen, setWorkspaceOpen] = useState(true);
-  const [useCasesOpen, setUseCasesOpen] = useState(false);
-  const [systemOpen, setSystemOpen] = useState(false);
-  const [tasksOpen, setTasksOpen] = useState(false);
+  const menuRoute = route === 'radio' ? 'planner' : route;
+  const section = sectionForRoute(route);
+  const [preset, setPreset] = useState<WorkspacePreset>('all');
+  const [openSections, setOpenSections] = useState<string[]>(() => section ? [section.id] : []);
+  useEffect(() => {
+    if (section) setOpenSections(open => open.includes(section.id) ? open : [...open, section.id]);
+  }, [section]);
   const [mobileOpen, setMobileOpen] = useState(false);
   const onNavigate = (next: PreviewRouteId) => { navigate(next); setMobileOpen(false); };
   return (
@@ -29,72 +33,41 @@ export default function PreviewWorkspaceShell({ route, context, onNavigate: navi
           <strong>{context.name}</strong>
           <small>{context.city} · {context.cluster} · {context.projectCount} {context.projectCount === 1 ? 'project' : 'projects'}</small>
         </div>}
+        <button type="button" className="workspace-project-library" aria-current={route === 'projects' ? 'page' : undefined}
+          onClick={() => onNavigate('projects')}>Projects <span aria-hidden="true">↗</span></button>
+        <label className="workspace-preset">Workspace preset
+          <select aria-label="Workspace preset" value={preset} onChange={event => setPreset(event.currentTarget.value as WorkspacePreset)}>
+            <option value="all">All workspaces</option><option value="rf">RF engineer</option>
+            <option value="operations">Operations</option><option value="platform">Platform administrator</option>
+          </select>
+        </label>
         <nav aria-label="Application workspaces" className="preview-workspace-nav">
-          <button type="button" className="preview-workspace-group" aria-controls="preview-workspace-routes"
-            aria-expanded={workspaceOpen} onClick={() => setWorkspaceOpen(open => !open)}>WORKSPACE <span aria-hidden="true">⌄</span></button>
-          <div id="preview-workspace-routes" hidden={!workspaceOpen}>
-            <button type="button" aria-current={route === 'overview' ? 'page' : undefined}
-              onClick={() => onNavigate('overview')}>{previewRoutes.overview.label}</button>
-            <button type="button" aria-current={route === 'projects' ? 'page' : undefined}
-              onClick={() => onNavigate('projects')}>{previewRoutes.projects.label}</button>
-            <button type="button" aria-current={route === 'stack' ? 'page' : undefined}
-              onClick={() => onNavigate('stack')}>{previewRoutes.stack.label}</button>
-            <button type="button" aria-current={route === 'artifacts' ? 'page' : undefined}
-              onClick={() => onNavigate('artifacts')}>{previewRoutes.artifacts.label}</button>
-            <button type="button" aria-current={route === 'ues' ? 'page' : undefined}
-              onClick={() => onNavigate('ues')}>{previewRoutes.ues.label}</button>
-            <button type="button" aria-current={route === 'map' ? 'page' : undefined}
-              onClick={() => onNavigate('map')}>{previewRoutes.map.label}</button>
-            <button type="button" aria-current={route === 'planner' ? 'page' : undefined}
-              onClick={() => onNavigate('planner')}>{previewRoutes.planner.label}</button>
-            <button type="button" aria-current={route === 'radio' ? 'page' : undefined}
-              onClick={() => onNavigate('radio')}>{previewRoutes.radio.label}</button>
-            <button type="button" aria-current={route === 'ray' ? 'page' : undefined}
-              onClick={() => onNavigate('ray')}>{previewRoutes.ray.label}</button>
-          </div>
-          <button type="button" className="preview-workspace-group" aria-controls="preview-usecase-routes"
-            aria-expanded={useCasesOpen} onClick={() => setUseCasesOpen(open => !open)}>USE CASES <span aria-hidden="true">⌄</span></button>
-          <div id="preview-usecase-routes" hidden={!useCasesOpen}>
-            <button type="button" aria-current={route === 'drive' ? 'page' : undefined}
-              onClick={() => onNavigate('drive')}>{previewRoutes.drive.label}</button>
-            <button type="button" aria-current={route === 'ab' ? 'page' : undefined}
-              onClick={() => onNavigate('ab')}>{previewRoutes.ab.label}</button>
-            <button type="button" aria-current={route === 'data' ? 'page' : undefined}
-              onClick={() => onNavigate('data')}>{previewRoutes.data.label}</button>
-          </div>
-          <button type="button" className="preview-workspace-group" aria-controls="preview-system-routes"
-            aria-expanded={systemOpen} onClick={() => setSystemOpen(open => !open)}>SYSTEM <span aria-hidden="true">⌄</span></button>
-          <div id="preview-system-routes" hidden={!systemOpen}>
-            <button type="button" aria-current={route === 'hardware' ? 'page' : undefined}
-              onClick={() => onNavigate('hardware')}>{previewRoutes.hardware.label}</button>
-            <button type="button" aria-current={route === 'software' ? 'page' : undefined}
-              onClick={() => onNavigate('software')}>{previewRoutes.software.label}</button>
-            <button type="button" aria-current={route === 'monitoring' ? 'page' : undefined}
-              onClick={() => onNavigate('monitoring')}>{previewRoutes.monitoring.label}</button>
-          </div>
-          <button type="button" className="preview-workspace-group" aria-controls="preview-task-routes"
-            aria-expanded={tasksOpen} onClick={() => setTasksOpen(open => !open)}>TASKS &amp; SCHEDULE <span aria-hidden="true">⌄</span></button>
-          <div id="preview-task-routes" hidden={!tasksOpen}>
-            <button type="button" aria-current={route === 'tasks' ? 'page' : undefined}
-              onClick={() => onNavigate('tasks')}>{previewRoutes.tasks.label}</button>
-            <button type="button" aria-current={route === 'schedule' ? 'page' : undefined}
-              onClick={() => onNavigate('schedule')}>{previewRoutes.schedule.label}</button>
-          </div>
-          <button type="button" aria-current={route === 'activity' ? 'page' : undefined}
-            onClick={() => onNavigate('activity')}>{previewRoutes.activity.label}</button>
+          {visibleSections(preset, route).map(group => <div key={group.id} className={group.utility ? 'workspace-utility' : undefined}>
+            <button type="button" className="preview-workspace-group" aria-controls={`workspace-${group.id}-routes`}
+              aria-expanded={openSections.includes(group.id)} onClick={() => setOpenSections(open => open.includes(group.id)
+                ? open.filter(id => id !== group.id) : [...open, group.id])}>
+              {group.label}<span aria-hidden="true">{openSections.includes(group.id) ? '−' : '+'}</span>
+            </button>
+            <div id={`workspace-${group.id}-routes`} hidden={!openSections.includes(group.id)}>
+              {group.routes.filter(id => id !== 'radio').map(id => <button type="button" key={id} data-nav-route={id} aria-label={previewRoutes[id].label}
+                aria-current={menuRoute === id ? 'page' : undefined} onClick={() => onNavigate(id)}>
+                {previewRoutes[id].label}{id === 'monitoring' && <small>Setup</small>}
+              </button>)}
+            </div>
+          </div>)}
         </nav>
         <p className="preview-workspace-boundary">Preparation mode<br /><small>RAN endpoints not connected</small></p>
       </aside>
       <div className="preview-workspace-main">
         <header className="preview-workspace-header">
-          <nav aria-label="Breadcrumb">Digital Twin <span>/</span> 5G RAN <span>/</span> <strong>{previewRoutes[route].label}</strong></nav>
+          <nav aria-label="Breadcrumb">5G RAN <span>/</span> {section?.label ?? 'Project library'} <span>/</span> <strong>{previewRoutes[menuRoute].label}</strong></nav>
           <span className="product-header-status"><i aria-hidden="true" /> Planning workspace</span>
         </header>
         <main id="workspace-content" className="preview-workspace-content" tabIndex={-1}>{children}</main>
         <footer role="contentinfo" aria-label="Planning status" className="preview-workspace-footer">
           <span>5G RAN TWIN · PREPARATION</span>
           {context && <span>{context.siteCount} SITES · {context.cellCount} CELLS · {new Intl.NumberFormat('en-US').format(context.ueCount)} VIRTUAL UES</span>}
-          <span>MAP · ILLUSTRATIVE METRICS</span>
+          <span>OFFLINE STUDY · SOURCE STATUS PER DATASET</span>
         </footer>
       </div>
     </div>

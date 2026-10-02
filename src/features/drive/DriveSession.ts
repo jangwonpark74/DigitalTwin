@@ -1,5 +1,7 @@
 import { analyzeDmTrace, buildDmAnalysisReport, DM_METRICS, makeDemoTrace, parseDmCsv } from '../../../dm.mjs';
 import { drivePlan } from '../../../usecases.mjs';
+import type { ProjectMapSession } from '../city-map/ProjectMapSession';
+import type { DriveMeasurements } from '../ray-tracing/driveKpi';
 
 type Project = Parameters<typeof drivePlan>[0];
 type Trace = ReturnType<typeof parseDmCsv> | ReturnType<typeof makeDemoTrace>;
@@ -18,10 +20,16 @@ export class DriveSession {
   private timer: ReturnType<typeof setInterval> | null = null;
   private generation = 0;
   private disposed = false;
+  private shared: ProjectMapSession | null = null;
+  private unsubscribeMap: (() => void) | null = null;
+  private datasetSignature = '';
 
-  constructor(projectId: string, private project: Project) {
+  constructor(projectId: string, private project: Project, shared?: ProjectMapSession) {
     this.state = { projectId, tab: 'analysis', technology: 'ALL', metric: 'rsrp',
       position: 0, playing: false, trace: null, filename: '' };
+    this.snapshot = Object.freeze({ ...this.state });
+    this.loadSavedMeasurements();
+    this.bindMap(shared);
     this.snapshot = Object.freeze({ ...this.state });
   }
 
@@ -32,9 +40,50 @@ export class DriveSession {
     return () => { this.listeners.delete(listener); };
   };
 
-  private publish() {
+  private publish(updateMap = true) {
     this.snapshot = Object.freeze({ ...this.state });
+    if (updateMap && this.isGeographic() && this.state.tab === 'analysis') {
+      const rows = analyzeDmTrace(this.currentTrace().samples, { technology: this.state.technology, metric: this.state.metric }).filtered;
+      this.shared?.update({ metric: this.state.metric, technology: this.state.technology,
+        selectedIndex: rows[this.state.position]?.index ?? null });
+    }
     this.listeners.forEach(listener => listener());
+  }
+
+  private isGeographic() {
+    return this.state.trace?.coordinateMode === 'gps';
+  }
+
+  private loadSavedMeasurements() {
+    const measurements = (this.project as { driveMeasurements?: DriveMeasurements | null }).driveMeasurements;
+    this.datasetSignature = JSON.stringify(measurements ?? null);
+    if (!measurements) return;
+    // x/y are derived only for legacy JSON consumers; geographic display uses original WGS84 positions.
+    const latitudes = measurements.samples.map(sample => sample.latitude), longitudes = measurements.samples.map(sample => sample.longitude);
+    const south = Math.min(...latitudes), west = Math.min(...longitudes);
+    const latSpan = Math.max(...latitudes) - south, lonSpan = Math.max(...longitudes) - west;
+    this.state.trace = { ...measurements, samples: measurements.samples.map(sample => ({ ...sample,
+      x: lonSpan ? 10 + 80 * (sample.longitude - west) / lonSpan : 50,
+      y: latSpan ? 90 - 80 * (sample.latitude - south) / latSpan : 50 })) };
+    this.state.filename = measurements.fileName;
+  }
+
+  private bindMap(shared?: ProjectMapSession) {
+    if (this.shared === (shared ?? null)) return;
+    this.unsubscribeMap?.();
+    this.shared = shared ?? null;
+    const sync = () => {
+      if (!this.shared || !this.isGeographic() || this.state.tab !== 'analysis') return;
+      const view = this.shared.getSnapshot();
+      const rows = analyzeDmTrace(this.currentTrace().samples, { technology: view.technology, metric: view.metric }).filtered;
+      const position = Math.max(0, rows.findIndex((sample: { index: number }) => sample.index === view.selectedIndex));
+      if (this.state.metric === view.metric && this.state.technology === view.technology && this.state.position === position) return;
+      this.pause(false);
+      Object.assign(this.state, { metric: view.metric, technology: view.technology, position });
+      this.publish(false);
+    };
+    this.unsubscribeMap = this.shared?.subscribe(sync) ?? null;
+    sync();
   }
 
   private currentTrace(): Trace {
@@ -47,12 +96,12 @@ export class DriveSession {
       : drivePlan(this.project).samples.length;
   }
 
-  pause() {
+  pause(updateMap = true) {
     if (this.timer !== null) clearInterval(this.timer);
     this.timer = null;
     if (this.state.playing) {
       this.state.playing = false;
-      this.publish();
+      this.publish(updateMap);
     }
   }
 
@@ -144,13 +193,21 @@ export class DriveSession {
       { technology: this.state.technology, metric: this.state.metric, filename: this.state.filename });
   }
 
-  setProject(projectId: string, project: Project) {
+  setProject(projectId: string, project: Project, shared?: ProjectMapSession) {
     if (this.disposed) return;
     const previousDrive = this.project.useCases.drive, nextDrive = project.useCases.drive;
     const driveChanged = previousDrive.route !== nextDrive.route || previousDrive.samples !== nextDrive.samples
       || previousDrive.speedKph !== nextDrive.speedKph || previousDrive.ueMode !== nextDrive.ueMode;
     this.project = project;
     if (projectId === this.state.projectId) {
+      const signature = JSON.stringify((project as { driveMeasurements?: unknown }).driveMeasurements ?? null);
+      if (signature !== this.datasetSignature) {
+        this.generation++; this.pause();
+        Object.assign(this.state, { trace: null, filename: '', position: 0 });
+        this.loadSavedMeasurements();
+        this.publish(false);
+      }
+      this.bindMap(shared ?? this.shared ?? undefined);
       if (driveChanged) { this.generation++; this.pause(); this.state.position = 0; this.publish(); }
       return;
     }
@@ -158,6 +215,8 @@ export class DriveSession {
     this.pause();
     this.state = { projectId, tab: 'analysis', technology: 'ALL', metric: 'rsrp',
       position: 0, playing: false, trace: null, filename: '' };
+    this.loadSavedMeasurements();
+    this.bindMap(shared);
     this.publish();
   }
 
@@ -166,6 +225,13 @@ export class DriveSession {
     this.generation++;
     this.pause();
     this.disposed = true;
+    this.unsubscribeMap?.();
     this.listeners.clear();
+  }
+
+  detachMap() {
+    this.unsubscribeMap?.();
+    this.unsubscribeMap = null;
+    this.shared = null;
   }
 }

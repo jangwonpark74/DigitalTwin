@@ -40,3 +40,104 @@
 .site-planner-scene-alternative .button{justify-self:start;max-width:100%;white-space:normal;text-align:left}
 @media(max-width:1050px){.site-planner-layout,.site-planner-detail-layout{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:700px){.site-planner-title{align-items:flex-start;flex-direction:column}.site-planner-title h1{font-size:22px}.site-planner-shortcuts{flex-wrap:wrap}.site-planner-fields,.site-planner-cell-fields{grid-template-columns:minmax(0,1fr)}.site-planner-site-list{grid-template-columns:minmax(0,1fr)}.site-planner-map>.panel-header .button{width:100%;justify-content:center}.site-planner-3d-host{min-height:250px;aspect-ratio:4/3}.site-planner-scene-alternative li{grid-template-columns:minmax(0,1fr)}}
+
+.commercial-planner.commercial-planner{gap:22px;color:#304a38}
+.commercial-planner.commercial-planner .panel{border:1px solid #dce5d8;border-radius:12px;background:white;box-shadow:0 2px 6px #21372604;overflow:hidden}
+.commercial-planner.commercial-planner .panel-header{padding:20px;border-bottom:1px solid #edf1e9;align-items:center;gap:12px}
+.commercial-planner.commercial-planner .panel-header h2{margin:0;color:#354b3a;font-size:15px;font-weight:600;letter-spacing:-.02em}
+.commercial-planner.commercial-planner .panel-caption{font-size:11px;color:#798777;margin:6px 0 0;line-height:1.5}
+.commercial-planner.commercial-planner .site-planner-title{align-items:center}
+.commercial-planner.commercial-planner .site-planner-title p{font-size:11px;letter-spacing:.12em;color:#7a8c70;max-width:90ch}
+.commercial-planner.commercial-planner .site-planner-title p span{display:inline;margin:0 6px;color:#bdc8b7;font-size:11px}
+.commercial-planner.commercial-planner .site-planner-title h1{font-size:30px;color:#2f4534;letter-spacing:-.05em;line-height:1.2}
+.commercial-planner.commercial-planner .site-planner-title>div>span{font-size:12px;color:#7c8975;margin-top:8px}
+.commercial-planner .sp-overview{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(220px,1.4fr);background:#f9fbf6;border:1px solid #dce5d5;border-radius:10px}
+.commercial-planner .sp-overview>div{padding:17px 22px;border-right:1px solid #e1e8dc;display:grid;gap:7px}
+.commercial-planner .sp-overview>div:last-child{border-right:0}
+.commercial-planner .sp-overview span{font-size:10px;font-weight:650;letter-spacing:.12em;color:#63745b}
+.commercial-planner .sp-overview strong{font-size:25px;font-weight:550;color:#3f5c40;letter-spacing:-.05em;line-height:1.1}
+.commercial-planner .sp-overview em{font-size:14px;font-style:normal;color:#9ba893;letter-spacing:0}
+.commercial-planner .sp-overview small{font-size:12px;color:#687960;line-height:1.5}
+.commercial-planner .sp-overview .sp-save-status strong{font-size:13px;letter-spacing:-.02em;margin:6px 0}
+.commercial-planner .sp-save-status strong::before{content:'';display:inline-block;width:6px;height:6px;background:#83a46d;border-radius:50%;margin-right:8px}
+.commercial-planner.commercial-planner .site-planner-layout{grid-template-columns:210px minmax(0,1fr) 300px;gap:18px;align-items:stretch}
+.commercial-planner .sp-inventory{display:flex;flex-direction:column;min-width:0}
+.commercial-planner .sp-inventory>header{padding:18px 15px 13px}
+.commercial-planner .sp-inventory h2{display:flex;justify-content:space-between;align-items:center;margin:0;font-size:14px;font-weight:600}
+.commercial-planner .sp-inventory h2 span{font-size:12px;color:#769267;background:#f0f5e9;padding:4px 7px;border-radius:5px}
+.commercial-planner .sp-inventory header p{font-size:12px;color:#68795f;margin:6px 0 0}
+.commercial-planner .sp-search{display:flex;align-items:center;gap:5px;padding:7px 9px;margin:0 12px;border:1px solid #dae3d5;border-radius:6px;color:#859c78;background:#fcfdf9}
+.commercial-planner .sp-search input{width:100%;min-width:0;font-size:12px;background:transparent;border:0;color:#486542;padding:4px 0;outline:none}
+.commercial-planner .sp-search:focus-within{outline:2px solid #91b184;outline-offset:2px}
+.commercial-planner .sp-site-filters{display:flex;flex-wrap:wrap;gap:4px;padding:12px 12px 2px}
+.commercial-planner .sp-site-filters button{border:0;border-radius:4px;padding:5px 6px;background:transparent;color:#63755a;font-size:10px;cursor:pointer}
+.commercial-planner .sp-site-filters button[aria-pressed=true]{color:#4b6b40;background:#eaf1e1}
+.commercial-planner.commercial-planner .site-planner-site-list{display:flex;flex-direction:column;gap:6px;padding:10px 10px 12px;max-height:465px;overflow-y:auto;flex:1}
+.commercial-planner.commercial-planner .site-planner-site-list button{padding:12px 10px;gap:7px;position:relative;border:1px solid transparent;background:#fff;color:#506649;border-radius:7px}
+.commercial-planner.commercial-planner .site-planner-site-list button:hover{background:#f6f9f1;border-color:#e0e8d8}
+.commercial-planner.commercial-planner .site-planner-site-list button[aria-pressed=true]{border-color:#c3d6b5;background:#eef5e6;box-shadow:inset 3px 0 #85a96c}
+.commercial-planner.commercial-planner .site-planner-site-list strong{display:flex;align-items:center;gap:6px;font-size:11px;color:#6e8661;letter-spacing:.04em}
+.commercial-planner .site-planner-site-list strong i,.commercial-planner .sp-map-caption i{width:5px;height:5px;background:#6b9b67;border-radius:50%;display:inline-block}
+.commercial-planner .site-planner-site-list strong em{margin-left:auto;font-style:normal;font-size:10px;border:1px solid #d8e4cf;border-radius:3px;padding:2px 4px;color:#879a78;background:#ffffff77}
+.commercial-planner.commercial-planner .site-planner-site-list button>span{font-size:11px;font-weight:550;line-height:1.4}
+.commercial-planner.commercial-planner .site-planner-site-list small{font-size:11px;color:#67795e;line-height:1.5}
+.commercial-planner.commercial-planner .site-planner-site-list .sp-site-sector-summary{font-size:10px;font-weight:400;line-height:1.5;color:#8a9b7d;position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.commercial-planner .sp-inventory>footer{padding:10px 15px;border-top:1px solid #edf1e8;font-size:11px;color:#8b9b7f}
+.commercial-planner .sp-search-empty{font-size:11px;color:#85957a;line-height:1.6;margin:10px}
+.commercial-planner .sp-search-empty button{display:block!important;text-decoration:underline;color:#5a7a4a!important}
+.commercial-planner.commercial-planner .sp-kicker{font-size:10px;letter-spacing:.12em;color:#667b5b;font-weight:600;margin:0 0 7px}
+.commercial-planner .sp-map-controls{display:flex;align-items:center;gap:3px;margin-left:auto;background:#f6f9f1;border:1px solid #e3eadb;border-radius:5px;padding:3px}
+.commercial-planner .sp-map-controls button{border:0;background:transparent;padding:6px 8px;border-radius:3px;color:#8b9a7f;font-size:11px;white-space:nowrap;cursor:pointer}
+.commercial-planner .sp-map-controls button[aria-pressed=true]{color:#4e7042;background:#fff;box-shadow:0 1px 3px #2b472319}
+.commercial-planner .sp-map-controls button:disabled{opacity:.45;cursor:default}
+.commercial-planner.commercial-planner .site-planner-map .panel-body{padding:12px}
+.commercial-planner.commercial-planner .site-planner-map .open-rf-host{height:460px;min-height:460px;aspect-ratio:auto;border:1px solid #e1e8db;border-radius:7px}
+.commercial-planner .rf-map-marker.base-station-marker{padding:6px 8px;border-radius:6px;gap:0}
+.commercial-planner .base-station-marker span{display:none}
+.commercial-planner .base-station-marker strong{font-size:10px}
+.commercial-planner .sp-map-caption{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;padding:13px 3px 2px;color:#637a58;font-size:11px}
+.commercial-planner .sp-map-caption span:first-child{color:#56704b;font-weight:600}
+.commercial-planner .sp-map-caption i{margin-right:5px}
+.commercial-planner .sp-site-tag{font-size:11px;color:#759667;background:#f0f5e9;border:1px solid #e0e8d9;border-radius:4px;padding:5px 7px;white-space:nowrap}
+.commercial-planner.commercial-planner .site-planner-fields{padding:18px;gap:14px 12px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.commercial-planner.commercial-planner .site-planner-fields label,.commercial-planner.commercial-planner .site-planner-add-fields label{font-size:12px;color:#5c704f;font-weight:500;gap:7px}
+.commercial-planner .sp-full-field{grid-column:1/-1}
+.commercial-planner.commercial-planner .site-planner-fields input,.commercial-planner.commercial-planner .site-planner-fields select,.commercial-planner.commercial-planner .site-planner-add-fields input{font-family:inherit;font-size:12px;color:#45643d;background:#fcfdf9;border:1px solid #d9e3d1;border-radius:5px;padding:10px;min-height:38px}
+.commercial-planner.commercial-planner :is(button,input,select,summary):focus-visible{outline:2px solid #7eab71;outline-offset:3px}
+.commercial-planner .sp-location-card{margin:0 18px 20px;padding:14px 13px;background:#f7faf2;border:1px solid #e4eadc;border-radius:7px}
+.commercial-planner .sp-location-card>div{display:flex;justify-content:space-between;align-items:center;gap:5px}
+.commercial-planner .sp-location-card>div>span{font-size:10px;letter-spacing:.07em;color:#657957;font-weight:600}
+.commercial-planner .sp-location-card b{font-size:10px;font-weight:500;color:#a1986a;background:#f3f0df;padding:3px 5px;border-radius:4px}
+.commercial-planner .sp-location-card b.positioned{color:#6b875a;background:#e7efdf}
+.commercial-planner .sp-location-card p{font-size:12px;letter-spacing:-.02em;color:#5a754d;margin:10px 0 4px;overflow-wrap:anywhere}
+.commercial-planner .sp-location-card small{font-size:11px;color:#63755a}
+.commercial-planner .sp-location-card button{display:block;margin-top:13px;padding:0;background:transparent;border:0;font-size:12px;color:#64844f;cursor:pointer}
+.commercial-planner .sp-placement-details{margin:0 18px 15px;border-top:1px solid #e9eee2;padding-top:13px}
+.commercial-planner .sp-placement-details>summary{font-size:12px;color:#849676;cursor:pointer}
+.commercial-planner .sp-placement-details .site-planner-fields{padding:14px 0}
+.commercial-planner.commercial-planner .site-planner-note{font-size:12px;color:#66795a;line-height:1.6;padding:0 18px 16px}
+.commercial-planner .sp-placement-details .site-planner-note{padding:0}
+.commercial-planner.commercial-planner .site-planner-detail-layout{grid-template-columns:minmax(0,1fr) 300px;gap:18px}
+.commercial-planner .sp-cell-workspace{display:grid;grid-template-columns:210px minmax(0,1fr);align-items:center;gap:0;padding:8px 0}
+.commercial-planner .sp-sector-compass{margin:0;padding:8px 20px 18px;text-align:center;border-right:1px solid #edf1e7}
+.commercial-planner .sp-sector-compass svg{display:block;width:100%;height:auto}
+.commercial-planner .sp-sector-compass figcaption{font-size:11px;color:#6b7e60;margin-top:10px}
+.commercial-planner .sp-sector-editor{min-width:0}
+.commercial-planner.commercial-planner .site-planner-cell-tabs{padding:10px 18px 0;gap:8px;overflow-x:auto}
+.commercial-planner.commercial-planner .site-planner-cell-tabs button{display:grid;gap:6px;flex:1;min-width:104px;padding:11px 12px;border:1px solid #e0e8d9;background:#f9fbf5;border-radius:6px;color:#7b9070}
+.commercial-planner.commercial-planner .site-planner-cell-tabs button[aria-selected=true]{background:#eff5e7;color:#4a6b40;border-color:#abc99a}
+.commercial-planner .site-planner-cell-tabs button>span{display:flex;justify-content:space-between;gap:10px;font-size:12px}
+.commercial-planner .site-planner-cell-tabs strong{font-size:11px;font-weight:550}
+.commercial-planner .site-planner-cell-tabs small{font-size:10px;text-align:left;color:#6b805d}
+.commercial-planner.commercial-planner .site-planner-add-fields{padding:18px;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.commercial-planner .site-planner-add-fields>label:first-child{grid-column:1/-1}
+.commercial-planner .site-planner-add-fields>.button{grid-column:1/-1;justify-self:stretch;justify-content:center;margin-top:2px}
+.commercial-planner .sp-workspace-footer{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:0 4px}
+.commercial-planner .sp-workspace-footer>span{font-size:10px;font-weight:550;letter-spacing:.08em;color:#91a087;white-space:nowrap}
+.commercial-planner .sp-workspace-footer i{display:inline-block;width:3px;height:3px;background:#b3c0a8;border-radius:50%;margin:0 8px 2px}
+.commercial-planner .sp-workspace-footer p{font-size:11px;color:#6e7f62;margin:0;line-height:1.6;text-align:right}
+.commercial-planner.commercial-planner .site-planner-error{background:#fff3ef;border:1px solid #ead0c3;color:#ae6850;padding:12px 16px;font-size:11px}
+@media(max-width:1380px){.commercial-planner.commercial-planner .site-planner-layout{grid-template-columns:190px minmax(0,1fr) 270px;gap:14px}.commercial-planner.commercial-planner .site-planner-detail-layout{grid-template-columns:minmax(0,1fr) 270px;gap:14px}.commercial-planner .sp-cell-workspace{grid-template-columns:170px minmax(0,1fr)}.commercial-planner .sp-sector-compass{padding:10px 14px}.commercial-planner.commercial-planner .panel-header{padding:17px 15px}}
+@media(max-width:1150px){.commercial-planner.commercial-planner .site-planner-layout{grid-template-columns:200px minmax(0,1fr)}.commercial-planner .site-planner-site{grid-column:2}.commercial-planner .sp-inventory{grid-row:span 2}.commercial-planner.commercial-planner .site-planner-detail-layout{grid-template-columns:minmax(0,1fr)}.commercial-planner .site-planner-add-fields{grid-template-columns:minmax(0,1fr) repeat(2,minmax(100px,.4fr)) auto}.commercial-planner .site-planner-add-fields>label:first-child,.commercial-planner .site-planner-add-fields>.button{grid-column:auto}.commercial-planner .sp-save-status{grid-column:1/-1}.commercial-planner .sp-overview{grid-template-columns:repeat(3,minmax(0,1fr))}.commercial-planner .sp-overview>div:nth-child(3){border-right:0}.commercial-planner .sp-overview>div:last-child{border-top:1px solid #e1e8dc}.commercial-planner .sp-overview .sp-save-status{display:flex;align-items:center;justify-content:space-between;gap:10px}}
+@media(max-width:760px){.commercial-planner.commercial-planner{gap:16px}.commercial-planner.commercial-planner .site-planner-layout{grid-template-columns:minmax(0,1fr)}.commercial-planner .site-planner-site{grid-column:auto}.commercial-planner .sp-inventory{grid-row:auto}.commercial-planner.commercial-planner .site-planner-site-list{max-height:240px}.commercial-planner .sp-cell-workspace{grid-template-columns:145px minmax(0,1fr)}.commercial-planner.commercial-planner .site-planner-cell-tabs button{min-width:95px}.commercial-planner.commercial-planner .site-planner-map .open-rf-host{height:420px;min-height:420px}.commercial-planner .sp-workspace-footer{align-items:start;flex-direction:column}.commercial-planner .sp-workspace-footer p{text-align:left}}
+@media(max-width:500px){.commercial-planner .sp-overview>div{padding:14px 12px}.commercial-planner .sp-overview span{font-size:10px;letter-spacing:.04em}.commercial-planner .sp-overview strong{font-size:23px}.commercial-planner .sp-overview small{font-size:10px}.commercial-planner .sp-overview .sp-save-status{display:grid;gap:3px}.commercial-planner .sp-overview .sp-save-status strong{margin:1px 0}.commercial-planner.commercial-planner .site-planner-title h1{font-size:25px}.commercial-planner.commercial-planner .site-planner-title{align-items:start;flex-direction:column}.commercial-planner .sp-cell-workspace{grid-template-columns:minmax(0,1fr)}.commercial-planner .sp-sector-compass{max-width:190px;margin:0 auto;border-right:0;padding-bottom:6px}.commercial-planner.commercial-planner .site-planner-add-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.commercial-planner .site-planner-add-fields>label:first-child,.commercial-planner .site-planner-add-fields>.button{grid-column:1/-1}.commercial-planner .sp-map-controls{margin-left:0}.commercial-planner .site-planner-shortcuts{width:100%;justify-content:space-between}}

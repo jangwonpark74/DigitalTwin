@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getRtCapability, getRtJob, submitRtJob } from './rtJobsApi';
+import { cancelRtJob, retryRtJob, getRtCapability, getRtJob, submitRtJob } from './rtJobsApi';
 
 const reply = (value: unknown, status = 200) => new Response(JSON.stringify(value), {
   status, headers: { 'Content-Type': 'application/json' },
@@ -13,6 +13,29 @@ const job = { map: { latitude: 37, longitude: 127, radiusMeters: 500 },
 const queued = { id: 'run-1', status: 'queued', createdAt: '2026-01-01' };
 
 describe('RT job transport adapters', () => {
+  it('cancels by project/run identity and distinguishes pending cancellation from stopped output', async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(reply({ ...queued, projectId: 'pilot', status: 'cancelling', cancelRequestedAt: '2026-01-01' }, 202))
+      .mockResolvedValueOnce(reply({ ...queued, projectId: 'pilot', status: 'cancelled', error: 'Worker stopped', completedAt: '2026-01-01', cancelRequestedAt: '2026-01-01' }))
+      .mockResolvedValueOnce(reply({ ...queued, projectId: 'other', status: 'cancelling', cancelRequestedAt: '2026-01-01' }));
+    expect((await cancelRtJob('pilot', 'run-1', fetcher)).status).toBe('cancelling');
+    expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual({ projectId: 'pilot' });
+    expect(fetcher.mock.calls[0][0]).toBe('/api/rt/jobs/run-1/cancel');
+    expect((await getRtJob('run-1', fetcher)).status).toBe('cancelled');
+    await expect(cancelRtJob('pilot', 'run-1', fetcher)).rejects.toThrow(/project/i);
+    await expect(cancelRtJob('../escape', 'run-1', fetcher)).rejects.toThrow(/project ID/i);
+    expect(fetcher).toHaveBeenCalledTimes(3);
+  });
+
+  it('retries only a server-retained parent and rejects responses that change the scope or linkage', async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(reply({ ...queued, id: 'retry-1', projectId: 'pilot', retryOf: 'run-1' }, 202))
+      .mockResolvedValueOnce(reply({ ...queued, id: 'retry-2', projectId: 'pilot', retryOf: 'other' }, 202));
+    expect((await retryRtJob('pilot', 'run-1', fetcher)).id).toBe('retry-1');
+    expect(fetcher.mock.calls[0][0]).toBe('/api/rt/jobs/run-1/retry');
+    expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual({ projectId: 'pilot' });
+    await expect(retryRtJob('pilot', 'run-1', fetcher)).rejects.toThrow(/parent|link/i);
+    await expect(retryRtJob('pilot', '../escape', fetcher)).rejects.toThrow(/job ID/i);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
   it('keeps capability unavailable distinct from a completed job', async () => {
     const fetcher = vi.fn().mockResolvedValue(reply({ available: false, platform: 'Darwin', message: 'Not installed' }));
     expect(await getRtCapability(fetcher)).toEqual({ available: false, platform: 'Darwin', message: 'Not installed' });

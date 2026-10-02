@@ -1,3 +1,4 @@
+import { clickWorkspaceButton } from './navigation';
 import { expect, test } from '@playwright/test';
 import { createWorkspaceState } from '../../workspaces.mjs';
 import type { WorkspaceSnapshot } from '../../src/api/schemas';
@@ -72,7 +73,7 @@ test('Ray tracing React route reports unavailable runtime and blocks jobs withou
 
   await page.goto('/frontend-preview.html');
   await page.getByRole('button', { name: 'Preview activity route' }).click();
-  await page.getByRole('button', { name: 'Ray tracing lab' }).click();
+  await clickWorkspaceButton(page, 'Ray tracing lab');
   const route = page.getByRole('region', { name: 'Ray tracing lab preview route' });
   await expect(route.getByRole('alert')).toContainText('No compatible Sionna-RT runtime');
   await expect(route.getByText('Load valid GeoJSON footprints in the map before running Sionna-RT.')).toBeVisible();
@@ -103,7 +104,7 @@ test('Ray tracing React route saves imported paths as unverified and exports the
 
   await page.goto('/frontend-preview.html');
   await page.getByRole('button', { name: 'Preview activity route' }).click();
-  await page.getByRole('button', { name: 'Ray tracing lab' }).click();
+  await clickWorkspaceButton(page, 'Ray tracing lab');
   const rays = { schemaVersion: 1, kind: 'ray-paths', coordinateSystem: 'EPSG:4326', runId: 'imported-e2e',
     solver: 'external solver', totalPaths: 1, paths: [{ id: 'path-e2e', pathLossDb: 77,
       points: [{ latitude: 37.5665, longitude: 126.978, heightM: 22 }, { latitude: 37.5667, longitude: 126.9782, heightM: 2 }] }] };
@@ -138,7 +139,7 @@ test('Ray path artifacts survive a Python server restart in disposable SQLite', 
 
     await page.goto(`${started.origin}/frontend-preview.html`);
     await page.getByRole('button', { name: 'Preview activity route' }).click();
-    await page.getByRole('button', { name: 'Ray tracing lab' }).click();
+    await clickWorkspaceButton(page, 'Ray tracing lab');
     await expect.poll(async () => Boolean((await (await fetch(`${started.origin}/api/workspace`)).json() as { workspace?: WorkspaceSnapshot }).workspace))
       .toBe(true);
     const initial = await (await fetch(`${started.origin}/api/workspace`)).json() as { workspace: WorkspaceSnapshot };
@@ -152,6 +153,9 @@ test('Ray path artifacts survive a Python server restart in disposable SQLite', 
       .toMatchObject({ provenance: 'imported-unverified', runId: 'sqlite-ray', paths: [{ id: 'sqlite-path' }] });
     const gpsCsv = 'time_s,technology,serving_cell,latitude,longitude,rsrp_dbm,rsrq_db,sinr_db,dl_mbps,ul_mbps\n0,NR,SITE-01-C1,37.566,126.978,-90,-9,18,120,30\n1,LTE,SITE-01-C1,37.566,126.9781,-115,-16,-2,3,1';
     await preview.getByLabel('Import drive test CSV', { exact: true }).setInputFiles({ name: 'sqlite-drive.csv', mimeType: 'text/csv', buffer: Buffer.from(gpsCsv) });
+    await page.getByRole('button', { name: 'Validate and preview' }).click();
+    await expect(page.getByRole('region', { name: 'Import quality preview' })).toBeVisible();
+    await page.getByRole('button', { name: 'Save GPS dataset' }).click();
     await expect(preview.getByText(/sqlite-drive.csv · 2\/2 GPS samples/)).toBeVisible();
     await expect.poll(async () => (await (await fetch(`${started.origin}/api/workspace`)).json()).workspace?.projects[0].project.driveMeasurements?.samples[1].sinrDb).toBe(-2);
     const artifactResponse = await fetch(`${started.origin}/api/projects/${projectId}/artifacts?content=1`);
@@ -165,7 +169,7 @@ test('Ray path artifacts survive a Python server restart in disposable SQLite', 
     server = started.process;
     await page.goto(`${started.origin}/frontend-preview.html`);
     await page.getByRole('button', { name: 'Preview activity route' }).click();
-    await page.getByRole('button', { name: 'Ray tracing lab' }).click();
+    await clickWorkspaceButton(page, 'Ray tracing lab');
     const reloaded = page.getByRole('region', { name: 'Ray tracing lab preview route' });
     await expect(reloaded.getByText('Imported · unverified')).toBeVisible();
     await expect(reloaded.getByText('sqlite-path · 64 dB · 2 points')).toBeVisible();
@@ -214,7 +218,7 @@ test('open 3D 5G lab renders project paths and placement without a solver', asyn
     body: JSON.stringify({ available: false, platform: 'Darwin', message: 'No local RT runtime' }) }));
   await page.setViewportSize({ width: 1600, height: 1150 });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Ray tracing lab', exact: true }).click();
+  await clickWorkspaceButton(page, 'Ray tracing lab');
   const lab = page.getByRole('region', { name: 'Ray tracing lab preview route' });
   await expect(lab.locator('.open-rf-host canvas')).toBeVisible();
   await lab.getByLabel('Receiver latitude', { exact: true }).fill('37.5662');
@@ -234,12 +238,20 @@ test('open 3D 5G lab renders project paths and placement without a solver', asyn
   // Public context tiles may load independently; imported geometry and paths
   // must render without depending on the tile source or on a solver runtime.
   await expect(lab.locator('.rf-map-marker.tx').first()).toBeVisible();
+  const transmitter = lab.locator('.base-station-marker[data-station-id="SITE-01"]');
+  await expect(transmitter).toHaveAttribute('data-height-m', '28');
+  await expect(transmitter).toContainText('28 m');
+  await expect.poll(() => transmitter.evaluate(element => Number((element as HTMLElement).dataset.groundY) -
+    Number((element as HTMLElement).dataset.tipY))).toBeGreaterThan(8);
   await expect(lab.locator('.rf-map-marker.rx')).toBeVisible();
   await expect(lab.locator('.rf-source-footer [role=status]')).toContainText('open map context connected', { timeout: 30000 });
   const driveCsv = ['time_s,technology,serving_cell,latitude,longitude,rsrp_dbm,rsrq_db,sinr_db,dl_mbps,ul_mbps,event',
     ...Array.from({ length: 61 }, (_, index) => `${index},${index < 40 ? 'NR' : 'LTE'},SITE-01-C1,37.5661,${126.977 + index * .00007},${[-91, -103, -119][Math.floor(index / 10) % 3]},-12,${[19, 7, -3][Math.floor(index / 10) % 3]},80,15,UI-test-fixture`),
   ].join('\n');
   await lab.getByLabel('Import drive test CSV', { exact: true }).setInputFiles({ name: 'gps-kpi-fixture.csv', mimeType: 'text/csv', buffer: Buffer.from(driveCsv) });
+  await page.getByRole('button', { name: 'Validate and preview' }).click();
+  await expect(page.getByRole('region', { name: 'Import quality preview' })).toBeVisible();
+  await page.getByRole('button', { name: 'Save GPS dataset' }).click();
   await expect(lab.getByText(/gps-kpi-fixture.csv · 61\/61 GPS samples/)).toBeVisible();
   await expect.poll(() => writes).toBe(1);
   await lab.getByRole('button', { name: 'Fit drive route', exact: true }).click();

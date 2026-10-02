@@ -1,0 +1,10 @@
+import { execFileSync } from 'node:child_process';
+import { prepareCellIdentity } from '../../cell-identity.mjs';
+import { retainMeasurementDataset } from '../../measurement-library.mjs';
+import { workspaceArtifactIndex } from '../../artifacts.mjs';
+const fixture = JSON.parse(execFileSync(process.execPath, ['tests/fixtures/measurement-library.mjs'], { encoding: 'utf8' }));
+const previous = fixture.workspace, workspace = structuredClone(previous), project = workspace.projects[0].project;
+const sample = project.driveMeasurements.samples[0];
+const bindings = [{ sourceCell: sample.servingCell, technology: sample.technology, targetCellId: project.sites[0].cells[0].id }];
+workspace.projects[0].project = await retainMeasurementDataset(project, prepareCellIdentity(project.driveMeasurements, project.sites, bindings), { now: () => '2026-10-02T03:00:00Z' });
+console.log(JSON.stringify({ previous, previousArtifacts: workspaceArtifactIndex(previous), workspace, artifacts: workspaceArtifactIndex(workspace) }));

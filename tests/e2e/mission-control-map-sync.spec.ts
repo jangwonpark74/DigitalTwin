@@ -1,0 +1,62 @@
+import { clickWorkspaceButton } from './navigation';
+import { expect, test } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
+import { createWorkspaceState } from '../../workspaces.mjs';
+import { defaultProject } from '../../model.mjs';
+
+test('Mission Control shares the project area, radio positions and selection across map routes', async ({ page }, testInfo) => {
+  const manifest = JSON.parse(await readFile('examples/gangnam-drive-test/gangnam-skt-drive-planning-manifest.json', 'utf8'));
+  const project = { ...defaultProject(), name: manifest.project, map: manifest.map, sites: manifest.sites,
+    driveMeasurements: manifest.driveMeasurements };
+  const workspace = createWorkspaceState(project, { id: '11111111-1111-4111-8111-111111111111' });
+  const errors: string[] = [], writes: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('request', request => { if (request.method() !== 'GET' && request.url().includes('/api/')) writes.push(request.url()); });
+  await page.route('**/api/workspace', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ revision: 1, workspace }) }));
+  await page.route('**/api/rt/capability', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ available: false, message: 'Test runtime unavailable' }) }));
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await page.goto('/');
+  await clickWorkspaceButton(page, 'City map');
+  const city = page.getByRole('region', { name: 'Radio map preview route' });
+  await city.getByRole('button', { name: 'Fit cell sites', exact: true }).click();
+  await expect(city.locator('.open-rf-host')).toHaveAttribute('data-map-ready', 'true');
+  await city.getByRole('button', { name: `${manifest.sites[6].name} in site list`, exact: true }).click();
+  await city.getByRole('button', { name: 'Project 3D', exact: true }).click();
+  await expect.poll(async () => Number(await city.locator('.open-rf-host').getAttribute('data-map-pitch'))).toBeCloseTo(52, 6);
+  await city.getByRole('button', { name: 'SINR dB', exact: true }).click();
+  await city.getByRole('slider', { name: 'Drive sample position' }).fill('340');
+  const viewport = await city.locator('.open-rf-host').evaluate(host => Object.fromEntries(
+    ['longitude', 'latitude', 'zoom', 'bearing'].map(key => [key, Number(host.getAttribute(`data-map-${key}`))])));
+  const titles = await city.locator('.base-station-marker').evaluateAll(markers => markers.map(marker => marker.getAttribute('title')));
+  await clickWorkspaceButton(page, 'Mission control');
+  const mission = page.getByRole('region', { name: 'City and cluster radio environment' });
+  const missionHost = mission.locator('.open-rf-host');
+  for (const [field, value] of Object.entries(viewport))
+    await expect.poll(async () => Number(await missionHost.getAttribute(`data-map-${field}`))).toBeCloseTo(value, 6);
+  await expect.poll(async () => Number(await missionHost.getAttribute('data-map-pitch'))).toBeCloseTo(52, 6);
+  await expect(mission.locator('.base-station-marker')).toHaveCount(9);
+  expect(await mission.locator('.base-station-marker').evaluateAll(markers => markers.map(marker => marker.getAttribute('title')))).toEqual(titles);
+  await expect(mission.getByRole('button', { name: 'SINR dB', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(mission.getByLabel('Selected drive sample')).toContainText('Sample 341');
+  await expect(page.getByRole('region', { name: 'Selected site' })).toContainText(manifest.sites[6].name);
+  await mission.getByRole('button', { name: `${manifest.sites[2].name} in site list`, exact: true }).click();
+  await mission.getByRole('button', { name: '2D map', exact: true }).click();
+  await expect(missionHost).toHaveAttribute('data-map-pitch', '0');
+  await mission.screenshot({ path: testInfo.outputPath('mission-control-map-desktop.png') });
+  await clickWorkspaceButton(page, 'Sites and Cells');
+  await page.getByRole('tab', { name: 'RF', exact: true }).click();
+  await expect(page.locator('[data-radio-site="SITE-03"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('tab', { name: 'Summary', exact: true }).click();
+  await expect(page.getByLabel('Site name', { exact: true })).toHaveValue(manifest.sites[2].name);
+  await clickWorkspaceButton(page, 'Ray tracing lab');
+  await expect(page.getByLabel('Transmitter site', { exact: true })).toHaveValue('SITE-03');
+  await clickWorkspaceButton(page, 'City map');
+  await expect(city.getByRole('button', { name: '2D map', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(city.getByRole('region', { name: 'Selected site' })).toContainText(manifest.sites[2].name);
+  await clickWorkspaceButton(page, 'Mission control');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await mission.screenshot({ path: testInfo.outputPath('mission-control-map-mobile.png') });
+  expect(errors).toEqual([]);
+  expect(writes).toEqual([]);
+});

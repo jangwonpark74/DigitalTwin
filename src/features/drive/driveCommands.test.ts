@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { webcrypto } from 'node:crypto';
 import { activateWorkspaceProject, createWorkspaceState } from '../../../workspaces.mjs';
 import { AppController } from '../../app/AppController';
 import { workspaceSchema, type WorkspaceSnapshot } from '../../api/schemas';
@@ -19,6 +20,7 @@ const csv = `time_s,technology,serving_cell,x_pct,y_pct,rsrp_dbm,rsrq_db,sinr_db
 `;
 
 beforeEach(() => {
+  vi.stubGlobal('crypto', webcrypto);
   const values = new Map<string, string>();
   vi.stubGlobal('localStorage', {
     getItem: (key: string) => values.get(key) ?? null,
@@ -40,6 +42,7 @@ describe('Drive commands use the preview controller as the only persisted owner'
       samples: [{ latitude: 37.566, longitude: 126.978, rsrpDbm: -90 }, { longitude: 126.9781, sinrDb: -2 }],
     });
     expect(controller.getSnapshot().workspace!.projects[1].project.driveMeasurements).toBeNull();
+    expect(controller.getSnapshot().workspace!.projects[0].project.measurementLibrary).toMatchObject({ records: [expect.objectContaining({ version: 1 })] });
     expect((controller.getSnapshot().workspace!.projects[0].project.useCases as { drive: object }).drive).not.toHaveProperty('trace');
     session.dispose();
   });

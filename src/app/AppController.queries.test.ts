@@ -35,6 +35,21 @@ beforeEach(() => {
 });
 
 describe('project-scoped application queries', () => {
+  it('keeps selected evidence visible during background polls and retains the last confirmed state on a transient failure', async () => {
+    const queries = queryApi(), next = pending<never>();
+    const detail = { ...run(firstId), status: 'running' as const, input: { seed: 42 }, result: null };
+    queries.runs.mockResolvedValue({ runs: [run(firstId)], total: 1, nextOffset: null });
+    queries.run.mockResolvedValueOnce(detail).mockReturnValueOnce(next.promise);
+    const controller = new AppController(workspaceApi(), queries); await controller.hydrate();
+    await controller.refreshRuns(); await controller.selectRun('run-1');
+    const poll = controller.selectRun('run-1', { background: true }).catch(() => null);
+    await vi.waitFor(() => expect(queries.run).toHaveBeenCalledTimes(2));
+    expect(controller.getSnapshot().selectedRun.data?.input).toEqual({ seed: 42 });
+    next.reject(new Error('Temporary status endpoint failure')); await poll;
+    expect(controller.getSnapshot().selectedRun.data?.status).toBe('running');
+    expect(controller.getSnapshot().selectedRun.error).toContain('Temporary');
+    expect(controller.getSnapshot().runs.data?.runs[0].status).toBe('running');
+  });
   it('returns a stable, immutable snapshot to subscribers and a new identity on publication', async () => {
     const controller = new AppController(workspaceApi(), queryApi());
     const before = controller.getSnapshot();

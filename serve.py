@@ -1,6 +1,7 @@
 """Serve this local mockup; reuse an existing server for the same project."""
 
 import argparse
+import copy
 import errno
 import http.client
 import importlib.util
@@ -11,11 +12,13 @@ import sqlite3
 import subprocess
 import sys
 import threading
+import time
 import uuid
 from datetime import datetime, timezone
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PurePosixPath
+from study_run import capture_header, PATH_SOLVER_PROFILE
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from rt_worker import validate_job
@@ -41,15 +44,21 @@ def sionna_available():
         return False
 
 
+class JobCancelled(Exception):
+    pass
+
+
 class JobManager:
     def __init__(self, runner=None, store=None):
         self.lock = threading.Lock()
         self.jobs = {}
         self.active = None
-        self.runner = runner or self._run_worker
+        self.runner = runner
         self.store = store
+        self.cancel_events = {}
 
     def start(self, payload, project_id=None):
+        payload = copy.deepcopy(payload)
         validate_job(payload)
         if self.store and not project_id:
             raise ValueError("projectId is required to record a Sionna-RT run")
@@ -59,16 +68,72 @@ class JobManager:
             job_id = str(uuid.uuid4())
             if self.store:
                 self.store.create_run(job_id, project_id, "sionna-rt", payload)
-            record = {"id": job_id, "status": "queued", "createdAt": datetime.now(timezone.utc).isoformat()}
-            self.jobs[job_id] = record
-            self.active = job_id
-            if len(self.jobs) > 10:
-                for old_id in list(self.jobs):
-                    if old_id != job_id and self.jobs[old_id]["status"] in ("complete", "failed"):
-                        del self.jobs[old_id]
-                        break
-        threading.Thread(target=self._execute, args=(job_id, payload), daemon=True).start()
+            receipt = self._enqueue(job_id, project_id)
+        self._launch(job_id, payload)
+        return receipt
+
+    def _enqueue(self, job_id, project_id, retry_of=None):
+        record = {"id": job_id, "projectId": project_id, "status": "queued", "createdAt": datetime.now(timezone.utc).isoformat(),
+                  "retryOf": retry_of, "cancelRequestedAt": None}
+        self.jobs[job_id] = record
+        self.cancel_events[job_id] = threading.Event()
+        self.active = job_id
+        if len(self.jobs) > 10:
+            for old_id in list(self.jobs):
+                if old_id != job_id and self.jobs[old_id]["status"] in ("complete", "failed", "cancelled", "interrupted"):
+                    del self.jobs[old_id]
+                    break
         return record.copy()
+
+    def retry(self, parent_id, project_id):
+        if not self.store:
+            raise ValueError("Exact retry requires server-retained frozen inputs")
+        with self.lock:
+            if self.active is not None:
+                raise RuntimeError("A Sionna-RT job is already running")
+            job_id = str(uuid.uuid4())
+            payload = self.store.create_retry(job_id, project_id, parent_id)
+            receipt = self._enqueue(job_id, project_id, parent_id)
+        self._launch(job_id, payload)
+        return receipt
+
+    def _launch(self, job_id, payload):
+        try:
+            threading.Thread(target=self._execute, args=(job_id, payload), daemon=True).start()
+        except Exception as exc:
+            with self.lock:
+                try:
+                    self._terminal(job_id, "failed", error=f"Worker launch failed: {exc}"[:500])
+                finally:
+                    self.active = None
+                    self.cancel_events.pop(job_id, None)
+            raise RuntimeError(f"Worker launch failed: {exc}"[:500]) from exc
+
+    def cancel(self, job_id, project_id):
+        with self.lock:
+            record = self.jobs.get(job_id)
+            retained = self.store.get_run(job_id) if self.store else record
+            if not retained or retained.get("projectId") != project_id:
+                raise ValueError("Run is unavailable in this project")
+            if retained["status"] == "cancelled":
+                return self._job_record(retained)
+            if retained["status"] not in ("queued", "running", "cancelling"):
+                raise RuntimeError("Only queued or running jobs can be cancelled")
+            if job_id != self.active or job_id not in self.cancel_events:
+                raise RuntimeError("This server does not own the active worker; refresh run status")
+            if retained["status"] != "cancelling":
+                if self.store:
+                    self.store.update_run(job_id, "cancelling")
+                    retained = self.store.get_run(job_id)
+                else:
+                    retained = {**record, "status": "cancelling", "cancelRequestedAt": datetime.now(timezone.utc).isoformat()}
+                record.update(status="cancelling", cancelRequestedAt=retained["cancelRequestedAt"])
+            self.cancel_events[job_id].set()
+            return record.copy()
+
+    @staticmethod
+    def _job_record(run):
+        return {key: run[key] for key in ("id", "status", "createdAt", "completedAt", "result", "error", "retryOf", "cancelRequestedAt", "projectId") if key in run}
 
     def get(self, job_id):
         with self.lock:
@@ -76,48 +141,81 @@ class JobManager:
             if record:
                 return record.copy()
         run = self.store.get_run(job_id) if self.store else None
-        return ({"id": run["id"], "status": run["status"], "createdAt": run["createdAt"],
-                 "completedAt": run["completedAt"], "result": run["result"], "error": run["error"]}
-                if run else None)
+        return self._job_record(run) if run else None
+
+    def _terminal(self, job_id, status, result=None, error=None):
+        if self.store:
+            self.store.update_run(job_id, status, result=result, error=error)
+        self.jobs[job_id].update(status=status, result=result, error=error, completedAt=datetime.now(timezone.utc).isoformat())
 
     def _execute(self, job_id, payload):
+        cancel = self.cancel_events[job_id]
         try:
+            capture = capture_header(payload["runCapture"]) if payload.get("runCapture") else None
             with self.lock:
+                if cancel.is_set():
+                    raise JobCancelled()
+                if self.store:
+                    self.store.update_run(job_id, "running")
                 self.jobs[job_id]["status"] = "running"
-            if self.store and self.store.get_run(job_id):
-                self.store.update_run(job_id, "running")
-            result = self.runner(payload)
+            result = self.runner(payload) if self.runner else self._run_worker(payload, cancel)
+            if capture:
+                result["runCapture"] = capture
             result.update({"runId": job_id, "fileName": f"sionna-rt-{job_id}.json",
                            "importedAt": datetime.now(timezone.utc).isoformat()})
             with self.lock:
-                self.jobs[job_id].update(status="complete", result=result,
-                                         completedAt=datetime.now(timezone.utc).isoformat())
-            if self.store and self.store.get_run(job_id):
-                self.store.update_run(job_id, "complete", result=result)
+                if cancel.is_set():
+                    raise JobCancelled()
+                self._terminal(job_id, "complete", result=result)
         except Exception as exc:
             with self.lock:
-                self.jobs[job_id].update(status="failed", error=str(exc)[:500],
-                                         completedAt=datetime.now(timezone.utc).isoformat())
-            if self.store and self.store.get_run(job_id):
                 try:
-                    self.store.update_run(job_id, "failed", error=str(exc)[:500])
-                except sqlite3.Error:
-                    pass
+                    retained = self.store.get_run(job_id) if self.store else None
+                    if retained and retained["status"] in ("complete", "failed", "cancelled", "interrupted"):
+                        self.jobs[job_id].update(self._job_record(retained))
+                    else:
+                        self._terminal(job_id, "cancelled" if cancel.is_set() or isinstance(exc, JobCancelled) else "failed",
+                                       error="Cancelled by user; worker stopped and output discarded" if cancel.is_set() or isinstance(exc, JobCancelled) else str(exc)[:500])
+                except (sqlite3.Error, ValueError) as persistence_error:
+                    self.jobs[job_id].update(status="failed", error=f"Run persistence failed: {persistence_error}"[:500], completedAt=datetime.now(timezone.utc).isoformat())
         finally:
             with self.lock:
                 self.active = None
+                self.cancel_events.pop(job_id, None)
 
     @staticmethod
-    def _run_worker(payload):
+    def _run_worker(payload, cancel=None):
+        cancel = cancel or threading.Event()
+        process = subprocess.Popen([sionna_python(), str(ROOT / "rt_worker.py")], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, text=True, cwd=ROOT)
+        deadline, first = time.monotonic() + PATH_SOLVER_PROFILE["maxRuntimeSeconds"], True
         try:
-            result = subprocess.run([sionna_python(), str(ROOT / "rt_worker.py")],
-                                    input=json.dumps(payload, allow_nan=False), text=True,
-                                    capture_output=True, timeout=180, cwd=ROOT, check=False)
-        except subprocess.TimeoutExpired as exc:
-            raise RuntimeError("Sionna-RT job exceeded the 180-second limit") from exc
-        if result.returncode:
-            raise RuntimeError(result.stderr.strip()[-500:] or "Sionna-RT worker failed")
-        return json.loads(result.stdout)
+            while True:
+                if cancel.is_set():
+                    process.terminate()
+                    try:
+                        process.communicate(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.communicate(timeout=2)
+                    raise JobCancelled()
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise RuntimeError("Sionna-RT job exceeded the 180-second limit")
+                try:
+                    stdout, stderr = process.communicate(input=json.dumps(payload, allow_nan=False) if first else None, timeout=min(.1, remaining))
+                except subprocess.TimeoutExpired:
+                    first = False
+                    continue
+                if cancel.is_set():
+                    raise JobCancelled()
+                if process.returncode:
+                    raise RuntimeError(stderr.strip()[-500:] or "Sionna-RT worker failed")
+                return json.loads(stdout)
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.communicate(timeout=2)
 
 
 class LocalDevRequestHandler(SimpleHTTPRequestHandler):
@@ -208,6 +306,8 @@ class LocalDevRequestHandler(SimpleHTTPRequestHandler):
         if path == "/api/rt/capability":
             available = sionna_available()
             return self._json(200, {"available": available, "platform": platform.system(),
+                                    "runContractVersion": 1,
+                                    "jobActions": ["cancel", "retry"],
                                     "message": "Sionna-RT Python environment detected" if available else
                                     "Sionna-RT is not installed in the configured Python environment"})
         if path.startswith("/api/rt/jobs/"):
@@ -257,7 +357,10 @@ class LocalDevRequestHandler(SimpleHTTPRequestHandler):
         return self._json(200, {"revision": revision})
 
     def do_POST(self):
-        if urlsplit(self.path).path != "/api/rt/jobs":
+        path = urlsplit(self.path).path
+        parts = [unquote(part) for part in path.strip("/").split("/")]
+        action = parts[4] if len(parts) == 5 and parts[:3] == ["api", "rt", "jobs"] and parts[4] in ("cancel", "retry") else None
+        if path != "/api/rt/jobs" and action is None:
             return self._json(404, {"error": "Unknown endpoint"})
         if not self._allow_local_api_request(check_origin=True):
             return
@@ -265,10 +368,15 @@ class LocalDevRequestHandler(SimpleHTTPRequestHandler):
         if payload is None:
             return
         try:
-            if not sionna_available():
+            if action:
+                if not isinstance(payload, dict) or set(payload) != {"projectId"} or not isinstance(payload["projectId"], str) or not payload["projectId"]:
+                    raise ValueError("Run actions require only the projectId; retained inputs cannot be overridden")
+                if self.job_manager.get(parts[3]) is None:
+                    return self._json(404, {"error": "Run not found"})
+            if action != "cancel" and not sionna_available():
                 return self._json(503, {"error": "Sionna-RT is unavailable. Configure SIONNA_RT_PYTHON with a Sionna-enabled Python environment."})
             project_id = payload.get("projectId") if isinstance(payload, dict) else None
-            record = self.job_manager.start(payload, project_id=project_id)
+            record = self.job_manager.cancel(parts[3], project_id) if action == "cancel" else self.job_manager.retry(parts[3], project_id) if action == "retry" else self.job_manager.start(payload, project_id=project_id)
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             return self._json(400, {"error": str(exc)})
         except RuntimeError as exc:

@@ -23,6 +23,9 @@ describe('open Silicon Valley city scene', () => {
     scene.report({ phase: 'ready', count: 212, message: 'Open map connected' });
     expect(screen.getByRole('status').textContent).toBe('Open map connected');
     expect(screen.getByText('212')).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Example base stations' }).textContent).toContain('24–36 m above ground');
+    await user.click(screen.getByLabelText('Base stations'));
+    expect(scene.handle.setLayer).toHaveBeenCalledWith('stations', false);
     await user.click(screen.getByRole('button', { name: 'Inspect a visible building' }));
     expect(scene.handle.inspect).toHaveBeenCalledOnce();
     await user.selectOptions(screen.getByLabelText('Silicon Valley location'), 'san-jose');

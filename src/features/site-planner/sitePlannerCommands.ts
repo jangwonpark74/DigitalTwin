@@ -29,6 +29,11 @@ function saveAndLog(controller: AppController, projectId: string,
     { title, detail }) as WorkspaceSnapshot));
 }
 
+function requiredNumber(value: string, field: string) {
+  if (!value.trim()) throw new Error(`${field} requires a number.`);
+  return Number(value);
+}
+
 /** Allowlisted site fields; x/y retain the legacy map-estimate projection behavior. */
 export function applySiteField(controller: AppController, projectId: string, siteId: string,
   field: SiteField, value: string): Promise<void> | null {
@@ -40,7 +45,7 @@ export function applySiteField(controller: AppController, projectId: string, sit
     if (field === 'name') site.name = value.trim();
     else if (field === 'frontEnd') site.frontEnd = value;
     else {
-      site[field] = Number(value);
+      site[field] = requiredNumber(value, field);
       if (field === 'x' || field === 'y') {
         const coordinates = mapPercentToGeo(project.map, site.x, site.y);
         site.radioLocation = { ...coordinates, source: 'map-estimate' };
@@ -57,7 +62,7 @@ export function applyCellField(controller: AppController, projectId: string, cel
   if (!cellFields.includes(field) || !record.project.sites.some(site => site.cells.some(cell => cell.id === cellId))) return null;
   return saveAndLog(controller, projectId, (project) => {
     const cell = project.sites.flatMap(site => site.cells).find(item => item.id === cellId)!;
-    cell[field] = Number(value);
+    cell[field] = requiredNumber(value, field);
   }, 'Cell setting changed', `${cellId} · ${field}`);
 }
 

@@ -1,5 +1,7 @@
 import type { buildMissionControlModel } from './missionControlModel';
 import './mission-control.css';
+import type { StudyGate } from './studyReadiness';
+import type { PreviewRouteId } from '../../app/routeRegistry';
 
 type Props = {
   model: ReturnType<typeof buildMissionControlModel>;
@@ -33,16 +35,28 @@ export function MissionControlHero({ model }: { model: ReadyModel }) {
           <p>Local GeoJSON and Sionna-RT path jobs are available when a compatible runtime is configured. Real vCore / vDU, GH200 discovery, and calibrated RF results remain unverified.</p></div>
         <span>RAN OFFLINE</span>
       </div>
-      <div className="mission-control-metrics" aria-label="Illustrative planning metrics">
-        {metrics.map(item => <article key={item.label}>
+      <div className="mission-control-metrics" aria-label="Study inventory">
+        {metrics.slice(0, 2).map(item => <article key={item.label}>
           <h2>{item.label}</h2><strong>{item.value}</strong><p>{item.detail}</p>
         </article>)}
       </div>
+      <details className="study-illustrative-metrics"><summary>Illustrative planning indicators · demonstration formulas</summary>
+        <p>These values are UI examples. They do not measure street or city-wide coverage and do not come from an executed RF model.</p>
+        <div className="mission-control-metrics" aria-label="Illustrative planning metrics">{metrics.slice(2).map(item => <article key={item.label}>
+          <h2>{item.label}</h2><strong>{item.value}</strong><p>{item.detail}</p></article>)}</div>
+      </details>
     </section>
   );
 }
 
-export function MissionControlReadiness({ model }: { model: ReadyModel }) {
+export function MissionControlReadiness({ model, gates, onNavigate }: { model: ReadyModel; gates?: StudyGate[]; onNavigate?: (route: PreviewRouteId) => void }) {
+  if (gates) return <section aria-label="Deployment readiness" className="mission-control-panel study-capabilities">
+    <h2>Study capabilities</h2><p>Evidence is checked for each operation. Local simulation and connected RAN operations have separate prerequisites.</p>
+    <ul aria-label="Study capability gates">{gates.map(gate => <li key={gate.id}>
+      <div><strong>{gate.label}</strong><small data-status={gate.status}>{gate.status === 'ready' ? 'AVAILABLE' : gate.status === 'unknown' ? 'CHECK REQUIRED' : 'NEEDS EVIDENCE'}</small></div>
+      <p>{gate.reason}</p><button type="button" onClick={() => onNavigate?.(gate.route)}>Review prerequisites →</button>
+    </li>)}</ul>
+  </section>;
   return <section aria-label="Deployment readiness" className="mission-control-panel">
     <h2>Deployment readiness</h2>
     <p>Evidence gates for an actual radio twin · {model.readiness.configured} / {model.readiness.total} GATES</p>

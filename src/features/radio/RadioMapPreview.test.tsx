@@ -38,14 +38,14 @@ describe('Radio map placement preview', () => {
     await controller.hydrate();
     render(<RadioMapPreview controller={controller} record={record} session={session}
       onError={vi.fn()} onNavigate={vi.fn()} />);
-
+    expect(screen.getByRole('region', { name: 'Mock project 3D scene' }).textContent).toBe('35/0/1');
     fireEvent.click(screen.getByRole('button', { name: 'Project 3D' }));
     const scene = screen.getByRole('region', { name: 'Mock project 3D scene' });
-    expect(scene.textContent).toBe('35/48/1');
+    expect(scene.textContent).toBe('35/52/1');
     fireEvent.click(screen.getByRole('button', { name: 'Rotate left' }));
     fireEvent.click(screen.getByRole('button', { name: 'Lower tilt' }));
     fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
-    expect(scene.textContent).toBe('20/40/1.1');
+    expect(scene.textContent).toBe('20/44/1.1');
     fireEvent.click(screen.getByRole('button', { name: '2D map' }));
     expect(screen.getByRole('button', { name: '2D map' }).getAttribute('aria-pressed')).toBe('true');
   });

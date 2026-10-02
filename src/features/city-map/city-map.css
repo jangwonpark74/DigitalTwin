@@ -9,6 +9,23 @@
 .radio-map-camera span{margin-left:auto;color:#9ab0c4;font-size:10px}
 .radio-map-project-scene .site-planner-3d-host{width:100%;min-height:360px;overflow:hidden;border:1px solid #30475b;border-radius:9px;background:#0d2233}
 .radio-map-project-scene .site-planner-3d-host canvas{display:block;width:100%;height:100%}
+.radio-map-preview .radio-map-project-scene .open-rf-host{height:clamp(500px,65vh,780px);min-height:500px;aspect-ratio:auto;border-color:#cedbd2}
+.radio-map-preview .radio-map-camera{background:#f7faf6;border-color:#d8e3d8;color:#476c57}
+.radio-map-preview .radio-map-camera button{background:white;border-color:#d2dfd4;color:#416a53}
+.radio-map-camera label{display:flex;align-items:center;gap:6px;font-size:11px}
+.radio-map-camera input{accent-color:#15956f}
+.radio-map-site-details{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(260px,.6fr);gap:18px;margin:18px 0}
+.radio-map-site-details .mission-control-site-list{align-content:start}
+.radio-map-placement{display:flex;flex-wrap:wrap;gap:12px;align-items:end;padding:14px;border:1px solid #d7e3d8;border-radius:9px;background:#f4f8f1;color:#345944}
+.radio-map-placement p{font-size:11px;margin:5px 0}
+.radio-map-placement label{display:grid;gap:6px;font-size:11px}
+.radio-map-placement input{width:130px;padding:9px;border:1px solid #c7d7ca;border-radius:6px;background:#fff}
+.radio-map-placement button{padding:9px 12px;border:1px solid #bfd2c3;border-radius:6px;background:#fff;color:#345944;cursor:pointer}
+.radio-map-settings{margin:18px 0}
+.radio-map-settings>summary{padding:13px;color:#456954;font-size:12px;cursor:pointer}
+.radio-map-settings .map-scope-controls{margin-top:10px}
+@media(max-width:800px){.radio-map-site-details{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:560px){.radio-map-preview .radio-map-project-scene .open-rf-host{height:470px;min-height:470px}.radio-map-placement{display:grid;grid-template-columns:minmax(0,1fr)}.radio-map-placement input{width:100%}}
 .map-scope-controls{display:grid;gap:12px;min-width:0;margin-bottom:14px;padding:14px;border:1px solid #2a3c52;border-radius:9px;background:#101d2d;color:#e7ebf5}
 .map-scope-controls>header h2{margin:0;color:#edf1f8;font:600 16px 'Space Grotesk',sans-serif}
 .map-scope-controls>header p,.map-scope-note{margin:5px 0 0;color:#8fa2b5;font-size:11px;line-height:1.5}

@@ -1,4 +1,6 @@
 import { defaultProject, upgradeProject, validateProject, sanitizeProject } from './model.mjs';
+import { assertStudyTransition } from './study.mjs';
+import { assertMeasurementTransition } from './measurement-library.mjs';
 
 const clone = value => structuredClone(value);
 const clock = () => new Date().toISOString();
@@ -209,6 +211,8 @@ export function updateWorkspaceProject(state, id, mutator, { now = clock } = {})
   const next = clone(state), record = requireRecord(next, id);
   if (record.status !== 'active') throw new Error('Archived projects cannot be edited');
   mutator(record.project);
+  assertStudyTransition(requireRecord(state, id).project.study, record.project.study);
+  assertMeasurementTransition(requireRecord(state, id).project.measurementLibrary, record.project.measurementLibrary);
   record.project.name = record.name;
   const errors = validateProject(record.project);
   if (errors.length) throw new Error(errors[0]);

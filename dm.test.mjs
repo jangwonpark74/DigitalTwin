@@ -2,9 +2,41 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultProject } from './model.mjs';
 import { drivePlan } from './usecases.mjs';
-import { makeDemoTrace, parseDmCsv, analyzeDmTrace, buildDmAnalysisReport, DM_METRICS } from './dm.mjs';
+import { makeDemoTrace, parseDmCsv, analyzeDmTrace, buildDmAnalysisReport, DM_METRICS, inspectDmCsv } from './dm.mjs';
 
 const fixture=`time_s,technology,serving_cell,x_pct,y_pct,rsrp_dbm,rsrq_db,sinr_db,dl_mbps,ul_mbps,event\n0,4G,SITE-01-C1,10,20,-90,-9,17,35,8,\n1,5G,SITE-01-C1,20,25,-115,-16,-2,3,1,handover\n2,NR,SITE-02-C1,30,27,-117,-17,-3,2,0.5,\n3,LTE,SITE-02-C1,40,30,-96,-12,7,22,5,\n`;
+
+test('partial KPI imports preserve nulls and exclude missing observations from quality denominators and zones', () => {
+  const partial = parseDmCsv('time_s,technology,serving_cell,latitude,longitude,sinr_db,dl_mbps\n0,NR,A,37.5,127,-2,0\n1,NR,A,37.501,127.001,,\n2,NR,A,37.502,127.002,-4,NA');
+  assert.equal(partial.schemaVersion, 2);
+  assert.deepEqual(partial.samples.map(s => s.rsrpDbm), [null, null, null]);
+  assert.deepEqual(partial.samples.map(s => s.dlMbps), [0, null, null]);
+  const stats = analyzeDmTrace(partial.samples, { metric: 'sinr' });
+  assert.equal(stats.sampleCount, 3); assert.equal(stats.validCount, 2); assert.equal(stats.missingCount, 1);
+  assert.equal(stats.average, -3); assert.equal(stats.weakPercent, 100);
+  assert.deepEqual(stats.weakZones, [{ start: 0, end: 0 }, { start: 2, end: 2 }]);
+  const unavailable = analyzeDmTrace(partial.samples, { metric: 'rsrp' });
+  assert.equal(unavailable.average, null); assert.equal(unavailable.weakPercent, null);
+  assert.equal(unavailable.weakCount, 0); assert.equal(unavailable.missingCount, 3);
+});
+
+test('explicit vendor column and unit mapping converts only selected units and retains source headers', () => {
+  const csv = '\uFEFFElapsed,RAT,Cell,Lat,Lon,SS Power,Download\n0,5G,A,37.5,127,-90,7.5e6\n1500,4G,A,37.501,127.001,N/A,0';
+  const inspected = inspectDmCsv(csv);
+  assert.equal(inspected.headers[0], 'Elapsed');
+  const mapping = { ...inspected.mapping, time_s: { column: 'Elapsed', unit: 'ms' }, technology: { column: 'RAT', unit: null },
+    serving_cell: { column: 'Cell', unit: null }, latitude: { column: 'Lat', unit: 'degrees' }, longitude: { column: 'Lon', unit: 'degrees' },
+    rsrp_dbm: { column: 'SS Power', unit: 'dBm' }, dl_mbps: { column: 'Download', unit: 'bps' } };
+  const parsed = parseDmCsv(csv, { mapping });
+  assert.deepEqual(parsed.samples.map(s => s.timeS), [0, 1.5]);
+  assert.deepEqual(parsed.samples.map(s => s.dlMbps), [7.5, 0]);
+  assert.deepEqual(parsed.samples.map(s => s.rsrpDbm), [-90, null]);
+  assert.deepEqual(parsed.mapping, mapping);
+  assert.throws(() => parseDmCsv(csv, { mapping: { ...mapping, latitude: { column: 'Lon', unit: 'degrees' } } }), /mapped more than once/);
+  assert.throws(() => parseDmCsv(csv, { mapping: { ...mapping, dl_mbps: { column: 'Download', unit: 'MBps' } } }), /unit/);
+  assert.throws(() => parseDmCsv(csv, { mapping: { ...mapping, time_s: { column: null, unit: 's' } } }), /Missing columns/);
+  assert.throws(() => parseDmCsv(csv.replace('7.5e6', 'Infinity'), { mapping }), /dl_mbps/);
+});
 
 test('synthetic demo is deterministic, route-bound and explicitly non-measured', () => {
   const project=defaultProject(), plan=drivePlan(project);

@@ -1,0 +1,41 @@
+.commercial-planner .sp-canonical-inspector .site-planner-cell-tabs { padding: 12px 14px; gap: 6px; }
+.commercial-planner .sp-canonical-inspector .site-planner-cell-tabs button { flex: 1; min-width: 0; padding: 8px 5px; }
+.commercial-planner .sp-canonical-inspector .site-planner-cell-tabs button > span { display: grid; gap: 4px; font-size: 11px; text-align: left; }
+.commercial-planner .sp-canonical-inspector .site-planner-cell-tabs small { font-size: 9px; }
+.sp-inspector-tabs { display: flex; padding: 0 12px; gap: 3px; border-bottom: 1px solid #dce7d5; }
+.sp-inspector-tabs button { flex: 1; min-width: 0; padding: 12px 3px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: #526b48; font: inherit; font-size: 11px; cursor: pointer; }
+.sp-inspector-tabs button[aria-selected="true"] { border-bottom-color: #366146; color: #294c37; font-weight: 700; }
+.sp-canonical-inspector :is(input, select, button):focus-visible { outline: 3px solid #287260; outline-offset: 2px; }
+.sp-inspector-content { padding: 18px; min-height: 390px; }
+.sp-inspector-content h3 { margin: 0 0 12px; color: #264834; font-size: 15px; }
+.sp-inspector-content p { font-size: 12px; color: #526b48; line-height: 1.6; }
+.commercial-planner .sp-canonical-inspector .site-planner-fields { padding: 0; margin: 16px 0; grid-template-columns: minmax(0, 1fr); }
+.commercial-planner .sp-canonical-inspector input, .commercial-planner .sp-canonical-inspector select { min-height: 40px; }
+.sp-inspector-summary { margin: 16px 0; display: grid; gap: 8px; font-size: 12px; }
+.sp-inspector-summary dt { color: #6f8267; }.sp-inspector-summary dd { margin: 0 0 8px; color: #294c37; font-weight: 600; overflow-wrap: anywhere; }
+.sp-inspector-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
+.sp-cell-inventory { min-width: 0; margin-top: 18px; }
+.sp-cell-inventory[hidden] { display: none; }
+.sp-cell-inventory summary { cursor: pointer; padding: 12px 0; color: #294c37; font-size: 13px; }
+.sp-cell-inventory summary span { display: block; margin-top: 7px; color: #6f8267; font-size: 11px; overflow-wrap: anywhere; }
+.sp-cell-inventory fieldset { min-width: 0; padding: 0; margin: 12px 0; border: 0; }
+.sp-cell-inventory legend { font-size: 11px; font-weight: 700; color: #526b48; }
+.sp-cell-inventory .sp-plmn-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.sp-cell-inventory .sp-channel-fields { display: grid; gap: 12px; }
+.sp-cell-inventory .sp-inventory-error { color: #a73535; overflow-wrap: anywhere; }
+.commercial-planner .sp-cell-inventory input, .commercial-planner .sp-cell-inventory select { min-width: 0; width: 100%; box-sizing: border-box; }
+@media (min-width: 1100px) {
+  .commercial-planner .sp-canonical-inspector { display: flex; flex-direction: column; max-height: max(640px, calc(100vh - 120px)); }
+  .commercial-planner .sp-canonical-inspector > header, .commercial-planner .sp-canonical-inspector > .site-planner-cell-tabs,
+  .commercial-planner .sp-canonical-inspector > .sp-inspector-tabs, .commercial-planner .sp-canonical-inspector > .sp-inspector-save-note { flex-shrink: 0; }
+  .commercial-planner .sp-canonical-inspector .sp-inspector-content { min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
+}
+.sp-inspector-save-note { margin: 0 !important; padding: 14px 18px; border-top: 1px solid #dce7d5; }
+.sp-inspector-content .sp-sector-compass { max-width: 280px; margin: 0 auto 16px; }
+.commercial-planner.commercial-planner .site-planner-detail-layout { grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 1151px) {
+  .commercial-planner .site-planner-map { display: flex; flex-direction: column; }
+  .commercial-planner .site-planner-map .panel-body, .commercial-planner .site-planner-map .open-rf-scene { display: flex; flex-direction: column; flex: 1; }
+  .commercial-planner.commercial-planner .site-planner-map .open-rf-host { flex: 1; height: auto; }
+}
+@media (max-width: 600px) { .sp-inspector-tabs button { min-height: 44px; font-size: 11px; }.sp-inspector-content { min-height: 0; }.commercial-planner .sp-canonical-inspector input, .commercial-planner .sp-canonical-inspector select { min-height: 44px; } }

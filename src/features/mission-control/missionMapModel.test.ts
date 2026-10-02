@@ -57,6 +57,7 @@ describe('Mission Control map view model uses legacy site, geography and provena
     const map = selected.project.map as { latitude: number; longitude: number; radiusMeters: number };
     const coordinates = mapPercentToGeo(map, site.x, site.y);
     site.radioLocation = { ...coordinates, source: 'map-estimate' };
+    site.x = 5; site.y = 95; // Stored schematic percentages must not override WGS84.
     const model = buildMissionMapModel(selected);
     expect(model.kind).toBe('ready');
     if (model.kind !== 'ready') return;
@@ -64,11 +65,17 @@ describe('Mission Control map view model uses legacy site, geography and provena
     expect(model.markers[0].x).toBeCloseTo(450 + local.eastM / map.radiusMeters * 450);
     expect(model.markers[0].y).toBeCloseTo(270 - local.northM / map.radiusMeters * 270);
     expect(model.selectedSite.coordinates).toBe(`${coordinates.latitude.toFixed(5)}, ${coordinates.longitude.toFixed(5)} · map estimate`);
+    expect(model.selectedSite.mapPosition).toBe('31.0%, 35.0%');
+    map.radiusMeters *= 2;
+    const expanded = buildMissionMapModel(selected);
+    if (expanded.kind !== 'ready') throw new Error('Valid expanded area expected');
+    expect(expanded.selectedSite.mapPosition).toBe('40.5%, 42.5%');
     site.radioLocation.latitude = map.latitude + 0.1;
     expect(buildMissionMapModel(selected).kind).toBe('ready');
     const distant = buildMissionMapModel(selected);
     if (distant.kind !== 'ready') return;
     expect(distant.markers[0].visible).toBe(false);
+    expect(distant.selectedSite.mapPosition).toBe('Outside map scope');
     expect(distant.markers[0].name).toBe('Civic Square');
   });
 

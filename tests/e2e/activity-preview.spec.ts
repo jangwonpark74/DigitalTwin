@@ -84,7 +84,7 @@ test('one stack leaf edits only the selected project and stays planning-only at 
     return { activityBottom: activity.getBoundingClientRect().bottom, sidebarBottom: element.getBoundingClientRect().bottom };
   });
   expect(navBounds.activityBottom).toBeLessThanOrEqual(navBounds.sidebarBottom);
-  const group = sidebar.getByRole('button', { name: /WORKSPACE/i });
+  const group = sidebar.getByRole('button', { name: 'Data and Twin Setup' });
   await group.focus();
   await group.press('Enter');
   await expect(group).toHaveAttribute('aria-expanded', 'false');
@@ -172,7 +172,7 @@ test('monitoring thresholds remain planned, project-scoped and validated after r
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/frontend-preview.html');
   await page.getByRole('button', { name: 'Preview activity route' }).click();
-  await clickWorkspaceButton(page, 'SYSTEM');
+
   await clickWorkspaceButton(page, 'Monitoring');
   const monitoring = page.getByRole('region', { name: 'Monitoring preview route' });
   await expect(monitoring.getByRole('heading', { name: 'Monitoring' })).toBeVisible();
@@ -196,7 +196,7 @@ test('monitoring thresholds remain planned, project-scoped and validated after r
   await expect(monitoring.getByRole('spinbutton', { name: /H200 GPU utilization threshold/i })).toHaveValue('85');
   await page.reload();
   await page.getByRole('button', { name: 'Preview activity route' }).click();
-  await clickWorkspaceButton(page, 'SYSTEM');
+
   await clickWorkspaceButton(page, 'Monitoring');
   await expect(page.getByRole('combobox', { name: 'Active project' })).toHaveValue(secondId);
   await expect(page.getByRole('region', { name: 'Monitoring preview route' }).getByText('NO DATA', { exact: true })).toHaveCount(2);
@@ -218,7 +218,7 @@ test('software version targets stay project-scoped and unverified after invalid 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/frontend-preview.html');
   await page.getByRole('button', { name: 'Preview activity route' }).click();
-  await clickWorkspaceButton(page, 'SYSTEM');
+
   await clickWorkspaceButton(page, 'Software management');
   const software = page.getByRole('region', { name: 'Software preview route' });
   await expect(software.getByRole('heading', { name: 'Software management' })).toBeVisible();
@@ -246,7 +246,7 @@ test('software version targets stay project-scoped and unverified after invalid 
   await expect(software.getByRole('textbox', { name: 'Target version for Sionna-RT' })).toHaveValue('unassigned');
   await page.reload();
   await page.getByRole('button', { name: 'Preview activity route' }).click();
-  await clickWorkspaceButton(page, 'SYSTEM');
+
   await clickWorkspaceButton(page, 'Software management');
   await expect(page.getByRole('combobox', { name: 'Active project' })).toHaveValue(secondId);
   await expect(page.getByRole('region', { name: 'Software preview route' }).getByText('NOT VERIFIED', { exact: true })).toHaveCount(6);
@@ -271,7 +271,7 @@ test('Schedule remains a dependency-checked project plan after edits and reload'
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/frontend-preview.html');
   await page.getByRole('button', { name: 'Preview activity route' }).click();
-  await clickWorkspaceButton(page, 'TASKS & SCHEDULE');
+
   await clickWorkspaceButton(page, 'Schedule');
   const schedule = page.getByRole('region', { name: 'Schedule preview route' });
   await expect(schedule.getByRole('heading', { name: 'Schedule' })).toBeVisible();
@@ -292,7 +292,7 @@ test('Schedule remains a dependency-checked project plan after edits and reload'
   await expect(schedule.getByLabel('Reschedule T-01')).toHaveValue(original);
   await page.reload();
   await page.getByRole('button', { name: 'Preview activity route' }).click();
-  await clickWorkspaceButton(page, 'TASKS & SCHEDULE');
+
   await clickWorkspaceButton(page, 'Schedule');
   await expect(page.getByRole('combobox', { name: 'Active project' })).toHaveValue(secondId);
   await expect(page.getByRole('region', { name: 'Schedule preview route' }).getByText('NOT RUN', { exact: true })).toHaveCount(7);
@@ -318,7 +318,7 @@ test('Task board adds only planned work and isolates project edits after reload'
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/frontend-preview.html');
   await page.getByRole('button', { name: 'Preview activity route' }).click();
-  await clickWorkspaceButton(page, 'TASKS & SCHEDULE');
+
   await clickWorkspaceButton(page, 'Task board');
   const board = page.getByRole('region', { name: 'Task board preview route' });
   await expect(board.getByRole('heading', { name: 'Task board' })).toBeVisible();
@@ -345,7 +345,7 @@ test('Task board adds only planned work and isolates project edits after reload'
   expect((database.workspace.projects[1].project.tasks as unknown[])).toHaveLength(7);
   await page.reload();
   await page.getByRole('button', { name: 'Preview activity route' }).click();
-  await clickWorkspaceButton(page, 'TASKS & SCHEDULE');
+
   await clickWorkspaceButton(page, 'Task board');
   await expect(page.getByRole('combobox', { name: 'Active project' })).toHaveValue(secondId);
   const narrow = await page.evaluate(() => ({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth }));
@@ -379,7 +379,7 @@ test('React run records separate planned work from scoped RT pages and selected 
     body: JSON.stringify({ ...run, input: {}, result: null }) }));
   await page.goto('/frontend-preview.html');
   await page.getByRole('button', { name: 'Preview activity route' }).click();
-  await clickWorkspaceButton(page, 'TASKS & SCHEDULE');
+
   await clickWorkspaceButton(page, 'Task board');
   const board = page.getByRole('region', { name: 'Task board preview route' });
   const runs = page.getByRole('region', { name: 'Run records' });
@@ -463,7 +463,7 @@ test('paired A/B fallback exports only a scoped plan after validated edits', asy
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/frontend-preview.html');
   await page.getByRole('button', { name: 'Preview activity route' }).click();
-  await clickWorkspaceButton(page, 'USE CASES');
+
   await clickWorkspaceButton(page, 'Package A/B test');
   const leaf = page.getByRole('region', { name: 'A/B experiment preview route' });
   await expect(leaf.getByText('NO VERDICT')).toBeVisible();
@@ -497,7 +497,7 @@ test('paired A/B fallback exports only a scoped plan after validated edits', asy
   await expect(leaf.locator('tbody tr')).toHaveCount(9);
   await page.reload();
   await page.getByRole('button', { name: 'Preview activity route' }).click();
-  await clickWorkspaceButton(page, 'USE CASES');
+
   await clickWorkspaceButton(page, 'Package A/B test');
   await expect(page.getByRole('region', { name: 'A/B experiment preview route' }).locator('tbody tr')).toHaveCount(9);
   expect(database.workspace.projects[1].activity).toHaveLength(0);
@@ -518,7 +518,7 @@ test('AI-RAN data fallback keeps generated rows at zero after scoped edits and e
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/frontend-preview.html');
   await page.getByRole('button', { name: 'Preview activity route' }).click();
-  await clickWorkspaceButton(page, 'USE CASES');
+
   await clickWorkspaceButton(page, 'AI-RAN data generation');
   const leaf = page.getByRole('region', { name: 'Dataset generation preview route' });
   await expect(leaf.getByText('0 ROWS GENERATED')).toBeVisible();
@@ -549,7 +549,7 @@ test('AI-RAN data fallback keeps generated rows at zero after scoped edits and e
   await expect(leaf.getByRole('combobox', { name: 'Learning task' })).toHaveValue('channel-prediction');
   await page.reload();
   await page.getByRole('button', { name: 'Preview activity route' }).click();
-  await clickWorkspaceButton(page, 'USE CASES');
+
   await clickWorkspaceButton(page, 'AI-RAN data generation');
   await expect(page.getByRole('region', { name: 'Dataset generation preview route' }).getByText('0 ROWS GENERATED')).toBeVisible();
   expect(database.workspace.projects[1].activity).toHaveLength(0);
@@ -566,7 +566,7 @@ test('schedule edits preserve dependency order and never dispatch planned tasks'
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/frontend-preview.html');
   await page.getByRole('button', { name: 'Preview activity route' }).click();
-  await clickWorkspaceButton(page, /TASKS & SCHEDULE/i);
+
   await clickWorkspaceButton(page, 'Schedule');
   const schedule = page.getByRole('region', { name: 'Schedule preview route' });
   await expect(schedule.getByText('Planning calendar only')).toBeVisible();

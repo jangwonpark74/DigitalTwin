@@ -3,7 +3,7 @@ import { geoToMapPercent, mapPercentToGeo } from '../../../model.mjs';
 import { activateWorkspaceProject, createWorkspaceState } from '../../../workspaces.mjs';
 import { AppController } from '../../app/AppController';
 import { workspaceSchema, type WorkspaceSnapshot } from '../../api/schemas';
-import { applyRadioField, placeRadioOnMap } from './radioCommands';
+import { applyRadioField, placeRadioAtCoordinates, placeRadioOnMap } from './radioCommands';
 
 const firstId = '11111111-1111-4111-8111-111111111111';
 const secondId = '22222222-2222-4222-8222-222222222222';
@@ -32,6 +32,19 @@ function controllerFor(apiWrite = vi.fn().mockImplementation(async (_draft: unkn
 }
 
 describe('radio-planner controller intents (legacy domain remains authoritative)', () => {
+  it('persists geographic map picks at their exact coordinates while protecting project scope', async () => {
+    const { controller, api } = controllerFor();
+    await controller.hydrate();
+    const map = controller.getSnapshot().workspace!.projects[0].project.map as { latitude: number; longitude: number; radiusMeters: number };
+    const coordinates = mapPercentToGeo(map, 65, 30);
+    await placeRadioAtCoordinates(controller, firstId, 'SITE-01', coordinates);
+    expect(site(controller).radioLocation).toEqual({ ...coordinates, source: 'manual' });
+    expect(controller.getSnapshot().workspace!.projects[1]).toEqual(workspace.projects[1]);
+    const saved = structuredClone(controller.getSnapshot().workspace);
+    expect(() => placeRadioAtCoordinates(controller, firstId, 'SITE-01', { latitude: 0, longitude: 0 })).toThrow('outside the current map radius');
+    expect(controller.getSnapshot().workspace).toEqual(saved);
+    expect(api.write).toHaveBeenCalledTimes(2);
+  });
   it('validates selected-site technology, front end and nullable MMU inputs without touching another project', async () => {
     const { controller, api } = controllerFor();
     await controller.hydrate();
