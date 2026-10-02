@@ -5,6 +5,7 @@ import { listArtifacts } from '../api/artifactsApi';
 import { getRun, listRuns } from '../api/runsApi';
 import { assertStudyTransition, stableJson } from '../../study.mjs';
 import { assertMeasurementTransition } from '../../measurement-library.mjs';
+import { assertInventoryTransition } from '../../inventory-import.mjs';
 import { resetMeasurementSelection } from '../features/city-map/ProjectMapSession';
 
 const BACKUP_KEY = 'atlas-ran-twin-workspaces';
@@ -147,6 +148,7 @@ export class AppController {
     for (const record of next.projects) {
       assertStudyTransition(this.state.workspace.projects.find(item => item.id === record.id)?.project.study, record.project.study);
       assertMeasurementTransition(this.state.workspace.projects.find(item => item.id === record.id)?.project.measurementLibrary, record.project.measurementLibrary);
+      assertInventoryTransition(this.state.workspace.projects.find(item => item.id === record.id)?.project, record.project);
     }
     this.resetMeasurementViews(next);
     this.resetQueries({ keepRuns: next.activeProjectId === this.state.workspace.activeProjectId });

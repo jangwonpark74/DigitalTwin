@@ -1,6 +1,7 @@
 import { defaultProject, upgradeProject, validateProject, sanitizeProject } from './model.mjs';
 import { assertStudyTransition } from './study.mjs';
 import { assertMeasurementTransition } from './measurement-library.mjs';
+import { assertInventoryTransition } from './inventory-import.mjs';
 
 const clone = value => structuredClone(value);
 const clock = () => new Date().toISOString();
@@ -213,6 +214,7 @@ export function updateWorkspaceProject(state, id, mutator, { now = clock } = {})
   mutator(record.project);
   assertStudyTransition(requireRecord(state, id).project.study, record.project.study);
   assertMeasurementTransition(requireRecord(state, id).project.measurementLibrary, record.project.measurementLibrary);
+  assertInventoryTransition(requireRecord(state, id).project, record.project);
   record.project.name = record.name;
   const errors = validateProject(record.project);
   if (errors.length) throw new Error(errors[0]);

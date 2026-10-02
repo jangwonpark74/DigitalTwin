@@ -1,4 +1,5 @@
 // Portable, append-only engineering studies. Digests identify content, not field verification.
+import { validateInventoryImports, verifyInventoryImports } from './inventory-import.mjs';
 const copy = value => structuredClone(value);
 const clock = () => new Date().toISOString();
 const idPattern = /^[\w-]{1,80}$/;
@@ -59,7 +60,7 @@ export function engineeringInputs(project) {
   delete map.geometryValidated; delete map.materialAssigned; delete map.coordinateAligned;
   const channel = copy(project.channel); delete channel.execution;
   return copy({ map, sites: project.sites, channel, ue: project.ue, architecture: project.architecture,
-    driveMeasurements: project.driveMeasurements ?? null });
+    driveMeasurements: project.driveMeasurements ?? null, ...(project.inventoryImports ? { inventoryImports: project.inventoryImports } : {}) });
 }
 function baseline(study, id) {
   const result = study?.baselines.find(item => item.id === id);
@@ -161,10 +162,11 @@ export function validateStudy(study, validateInputs = () => []) {
     }
     for (const record of study.baselines) {
       const value = payload(record);
-      if (!value.inputs || stableJson(Object.keys(value.inputs).sort()) !== stableJson(inputKeys.sort())
+      if (!value.inputs || stableJson(Object.keys(value.inputs).sort()) !== stableJson([...inputKeys, ...(Object.hasOwn(value.inputs, 'inventoryImports') ? ['inventoryImports'] : [])].sort())
         || stableJson(value.definition) !== stableJson(study.definitions[value.definition?.version - 1])) throw new Error('Baseline inputs / definition do not match the study');
       if (['geometryValidated', 'materialAssigned', 'coordinateAligned'].some(key => key in value.inputs.map) || 'execution' in value.inputs.channel) throw new Error('Baseline cannot assert unverified execution or geometry');
       const errors = validateInputs(value.inputs); if (errors.length) throw new Error(`Baseline: ${errors[0]}`);
+      const inventoryErrors = validateInventoryImports(value.inputs); if (inventoryErrors.length) throw new Error(`Baseline: ${inventoryErrors[0]}`);
     }
     for (const candidate of study.candidates) {
       const inputs = JSON.parse(baseline(study, candidate.baselineId).inputJson).inputs;
@@ -188,6 +190,7 @@ export async function verifyStudyDigests(study) {
   for (const record of [...study.baselines, ...study.candidates.flatMap(item => item.versions)]) {
     if (await digest(record.inputJson) !== record.sha256) throw new Error('Study content digest does not match its saved inputs');
   }
+  for (const baseline of study.baselines) await verifyInventoryImports(JSON.parse(baseline.inputJson).inputs);
 }
 export function assertStudyTransition(previous, next) {
   if (!previous) return;

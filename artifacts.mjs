@@ -2,6 +2,7 @@ import { createManifest, sanitizeProject, validateProject } from './model.mjs';
 import { parseRayPaths } from './scene.mjs';
 import { assertStudyTransition } from './study.mjs';
 import { assertMeasurementTransition } from './measurement-library.mjs';
+import { assertInventoryTransition } from './inventory-import.mjs';
 
 const editableJsonIds = new Set(['project-config', 'use-case-config', 'management-config', 'ray-paths']);
 export const isEditableJsonArtifact = id => editableJsonIds.has(id);
@@ -36,6 +37,7 @@ export function applyArtifactJson(project, id, source) {
   if (errors.length) throw new Error(errors[0]);
   assertStudyTransition(project.study, next.study);
   assertMeasurementTransition(project.measurementLibrary, next.measurementLibrary);
+  assertInventoryTransition(project, next);
   return next;
 }
 
@@ -68,6 +70,13 @@ export function buildArtifactTree(project, activity = []) {
     ...(project.study ? [folder('engineering-study', 'engineering-study', [
       jsonFile('study-history', 'study-history.json', project.study, 'Append-only study definitions, baseline input captures and candidate revisions. Content identity does not verify RF assumptions.'),
     ], 'Frozen study inputs and exact candidate RF change history.')] : []),
+    ...(project.inventoryImports ? [folder('inventory-sources', 'inventory-sources', project.inventoryImports.records.map(record => {
+      const data = JSON.parse(record.inputJson), prefix = `inventory-${record.version}`;
+      return folder(prefix, `v${record.version}`, [
+        textFile(`${prefix}-source`, data.fileName, data.rawCsv, 'Original UTF-8 inventory CSV retained without modification.', 'text/csv'),
+        jsonFile(`${prefix}-review`, 'inventory-review.json', Object.fromEntries(Object.entries(data).filter(([key]) => key !== 'rawCsv')), 'Source declaration, mapping, normalized rows and reviewed targets; unverified.'),
+      ], 'Immutable reviewed inventory import.');
+    }), 'Retained operator-declared inventory sources and review recipes.')] : []),
     ...(project.measurementLibrary ? [folder('measurement-datasets', 'measurement-datasets', [
       jsonFile('measurement-library', 'measurement-library.json', project.measurementLibrary, 'Immutable measurement snapshot versions and the saved working selection.'),
       ...project.measurementLibrary.records.map(record => {

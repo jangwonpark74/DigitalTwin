@@ -6,6 +6,7 @@ import { validateDriveMeasurements } from './drive-measurements.mjs';
 import { validateStudy } from './study.mjs';
 import { validateMeasurementLibrary } from './measurement-library.mjs';
 import { validateInventoryIdentities } from './network-cell-identity.mjs';
+import { validateInventoryImports } from './inventory-import.mjs';
 
 const clone = value => structuredClone(value);
 const round = value => Math.round(value * 10) / 10;
@@ -122,6 +123,7 @@ export function validateProject(p) {
   errors.push(...validateRayPaths(p?.rayResults));
   errors.push(...validateDriveMeasurements(p?.driveMeasurements));
   errors.push(...validateMeasurementLibrary(p));
+  errors.push(...validateInventoryImports(p));
   if (p?.runtime?.host !== 'GH200' || p.runtime.gpu !== 'H200' || p.runtime.cpu !== 'Grace CPU') errors.push('Runtime must specify GH200 / H200 / Grace CPU');
   if (p?.architecture?.vCore?.kind !== 'physical' || p?.architecture?.vDU?.kind !== 'physical' || p?.architecture?.ru?.kind !== 'virtual' || p?.architecture?.ue?.kind !== 'virtual-cpu') errors.push('Physical / virtual RAN boundary invalid');
   if (p?.channel?.engine !== 'Sionna-RT' || !Number.isInteger(p.channel.maxDepth) || p.channel.maxDepth < 1 || p.channel.maxDepth > 12) errors.push('Invalid Sionna-RT configuration');
@@ -164,7 +166,7 @@ export function validateProject(p) {
   errors.push(...validateUseCases(p?.useCases));
   errors.push(...validateTasks(p?.tasks));
   errors.push(...validateManagement(p?.management));
-  errors.push(...validateStudy(p?.study, inputs => validateProject({ ...p, ...inputs, study: undefined, measurementLibrary: undefined })));
+  errors.push(...validateStudy(p?.study, inputs => validateProject({ ...p, ...inputs, study: undefined, measurementLibrary: undefined, inventoryImports: inputs.inventoryImports })));
   return errors;
 }
 
@@ -264,6 +266,7 @@ export function createManifest(p) {
     ...(safe.study ? { study: safe.study } : {}),
     ...(safe.driveMeasurements ? { driveMeasurements: safe.driveMeasurements } : {}),
     ...(safe.measurementLibrary ? { measurementLibrary: safe.measurementLibrary } : {}),
+    ...(safe.inventoryImports ? { inventoryImports: safe.inventoryImports } : {}),
     preview: simulatePreview(safe), readiness: readiness(safe),
     useCaseConfig: safe.useCases,
     useCases: { drive: drivePlan(safe), ab: abPlan(safe), data: datasetPlan(safe) },

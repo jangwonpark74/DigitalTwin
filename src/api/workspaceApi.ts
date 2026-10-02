@@ -3,6 +3,7 @@ import { validateWorkspaceState } from '../../workspaces.mjs';
 import { verifyStudyDigests } from '../../study.mjs';
 import { verifyProjectDriveEvidence } from '../../drive-measurements.mjs';
 import { verifyMeasurementLibrary } from '../../measurement-library.mjs';
+import { verifyInventoryImports } from '../../inventory-import.mjs';
 import { parseWorkspaceEnvelope, saveConfirmationSchema, type WorkspaceSnapshot } from './schemas';
 
 export class WorkspaceConflictError extends Error {
@@ -27,14 +28,14 @@ export async function readWorkspace(fetcher: typeof fetch = fetch) {
   const data = await jsonResponse(response, 'The database API did not return JSON. Restart make run with the updated server.');
   if (!response.ok) throw new Error(serverError(data, `Database request failed (${response.status})`));
   const envelope = parseWorkspaceEnvelope(data);
-  for (const record of envelope.workspace?.projects ?? []) { await verifyStudyDigests(record.project.study); await verifyProjectDriveEvidence(record.project); await verifyMeasurementLibrary(record.project); }
+  for (const record of envelope.workspace?.projects ?? []) { await verifyStudyDigests(record.project.study); await verifyProjectDriveEvidence(record.project); await verifyMeasurementLibrary(record.project); await verifyInventoryImports(record.project); }
   return envelope;
 }
 
 export async function writeWorkspace(workspace: WorkspaceSnapshot, revision: number, fetcher: typeof fetch = fetch) {
   const errors = validateWorkspaceState(workspace as Parameters<typeof validateWorkspaceState>[0]);
   if (errors.length) throw new Error(errors[0]);
-  for (const record of workspace.projects) { await verifyStudyDigests(record.project.study); await verifyProjectDriveEvidence(record.project); await verifyMeasurementLibrary(record.project); }
+  for (const record of workspace.projects) { await verifyStudyDigests(record.project.study); await verifyProjectDriveEvidence(record.project); await verifyMeasurementLibrary(record.project); await verifyInventoryImports(record.project); }
   if (!Number.isSafeInteger(revision) || revision < 0) throw new Error('Invalid workspace revision');
   const response = await fetcher('/api/workspace', {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
